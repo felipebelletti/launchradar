@@ -25,7 +25,7 @@ export default defineConfig({
       WEBHOOK_POLL_INTERVAL_SECONDS: '60',
       DAILY_CREDIT_BUDGET: '100000',
       ACCOUNT_MONITOR_TTL_DAYS: '15',
-      TIER_C_POLL_INTERVAL_SECONDS: '120',
+      ACCOUNT_POLL_INTERVAL_MS: '300000',
     },
   },
 });

@@ -46,11 +46,6 @@ export interface EnrichmentJobData {
   twitterHandle: string;
 }
 
-export interface AccountMonitorJobData {
-  twitterHandle: string;
-  launchRecordId: string;
-}
-
 export type RuleTier = 'TIER_A' | 'TIER_B' | 'TIER_C';
 
 export interface TwitterApiRule {

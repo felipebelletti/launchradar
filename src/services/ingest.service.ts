@@ -1,10 +1,11 @@
 import { RuleSource } from '@prisma/client';
 import { prisma } from '../db/client.js';
+import { redis } from '../redis.js';
 import { ocrTweetImages } from '../ocr/image-ocr.js';
 import { isLaunchAnnouncement, isCryptoRelated } from '../ai/classifier.js';
 import { findExistingRecord } from './dedup.service.js';
 import { enrichmentQueue } from '../queues/enrichment.queue.js';
-import { accountMonitorQueue } from '../queues/account-monitor.queue.js';
+import { registerAccountPolling } from '../queues/account-poll.queue.js';
 import { createChildLogger } from '../logger.js';
 import type { TweetData } from '../types/index.js';
 
@@ -49,6 +50,14 @@ export async function ingestTweet(
     return;
   }
 
+  // Guard: skip tweets already discarded by AI filters (prevents re-running Stage 1/2)
+  const DISCARD_KEY = 'discarded:tweet_ids';
+  const alreadyDiscarded = await redis.sismember(DISCARD_KEY, tweet.id);
+  if (alreadyDiscarded) {
+    log.debug('Already discarded tweet, skipping', { tweetId: tweet.id });
+    return;
+  }
+
   // Guard: dedup on tweet ID (twitterapi.io may deliver the same tweet twice)
   const existingSignal = await prisma.tweetSignal.findUnique({
     where: { tweetId: tweet.id },
@@ -81,6 +90,8 @@ export async function ingestTweet(
         result: 'discard',
         tweetText: tweet.text,
       });
+      await redis.sadd(DISCARD_KEY, tweet.id);
+      await redis.expire(DISCARD_KEY, 60 * 60 * 24 * 3); // 3 day TTL
       return;
     }
 
@@ -93,6 +104,8 @@ export async function ingestTweet(
         result: 'discard',
         tweetText: tweet.text,
       });
+      await redis.sadd(DISCARD_KEY, tweet.id);
+      await redis.expire(DISCARD_KEY, 60 * 60 * 24 * 3); // 3 day TTL
       return;
     }
 
@@ -153,13 +166,6 @@ export async function ingestTweet(
       authorHandle: tweet.authorHandle,
     });
 
-    // If this is a Tier C follow-up tweet, update lastTweetAt
-    if (tier === RuleSource.TIER_C) {
-      await prisma.monitoredAccount.updateMany({
-        where: { twitterHandle: tweet.authorHandle },
-        data: { lastTweetAt: new Date() },
-      });
-    }
   } else {
     // Create new stub LaunchRecord
     // Use authorHandle as placeholder project name — Stage 3 extractor will refine it
@@ -217,17 +223,25 @@ export async function ingestTweet(
     }
   );
 
-  // Step 7: Queue account monitor job (deduplicated by twitterHandle)
+  // Step 7: Register account for polling (deduplicated — skips if already monitored)
   // Skip if already a Tier C tweet (already monitoring this account)
   if (tier !== RuleSource.TIER_C) {
-    await accountMonitorQueue.add(
-      'register-account-monitor',
-      { twitterHandle: tweet.authorHandle, launchRecordId },
-      {
-        jobId: tweet.authorHandle,
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 5000 },
-      }
-    );
+    const existingMonitor = await prisma.monitoredAccount.findUnique({
+      where: { twitterHandle: tweet.authorHandle },
+    });
+
+    if (!existingMonitor) {
+      await prisma.monitoredAccount.create({
+        data: {
+          twitterHandle: tweet.authorHandle,
+          active: true,
+          activatedAt: new Date(),
+          launchRecordId,
+        },
+      });
+
+      await registerAccountPolling(tweet.authorHandle);
+      log.info('Registered account for polling', { twitterHandle: tweet.authorHandle });
+    }
   }
 }

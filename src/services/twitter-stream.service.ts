@@ -177,6 +177,13 @@ export class TwitterStreamClient {
 
   private handleTweetEvent(event: WsTweetEvent): void {
     const { rule_tag, tweets } = event;
+
+    // Tier C rules have been migrated to polling — ignore stale WebSocket deliveries
+    if (rule_tag.startsWith('account_')) {
+      log.warn('Ignoring stale Tier C WebSocket delivery', { ruleTag: rule_tag });
+      return;
+    }
+
     log.info('Tweet event received', {
       ruleTag: rule_tag,
       tweetCount: tweets.length,

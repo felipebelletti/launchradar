@@ -20,38 +20,21 @@ import { ingestTweet } from '../../services/ingest.service.js';
 import { enrichLaunch } from '../../services/enrichment.service.js';
 import { getBullMQConnection, redis } from '../../redis.js';
 import { enrichmentQueue } from '../../queues/enrichment.queue.js';
-import { accountMonitorQueue } from '../../queues/account-monitor.queue.js';
-import { RuleManagerService } from '../../services/rule-manager.service.js';
-import type { EnrichmentJobData, AccountMonitorJobData } from '../../types/index.js';
+import type { EnrichmentJobData } from '../../types/index.js';
 
 describe('Scenario 3: OCR Provides the Crypto Signal', () => {
   let enrichmentWorker: Worker<EnrichmentJobData>;
-  let accountMonitorWorker: Worker<AccountMonitorJobData>;
-  let ruleManager: RuleManagerService;
 
   beforeAll(async () => {
-    ruleManager = new RuleManagerService(redis);
-    await redis.set('rule:active_count', '5');
-    await redis.set('rule:max_rules', '50');
-
     enrichmentWorker = new Worker<EnrichmentJobData>(
       'enrich-launch',
       async (job) => { await enrichLaunch(job.data.launchRecordId); },
-      { connection: getBullMQConnection(), concurrency: 1 }
-    );
-
-    accountMonitorWorker = new Worker<AccountMonitorJobData>(
-      'register-account-monitor',
-      async (job) => {
-        await ruleManager.registerAccountMonitor(job.data.twitterHandle, job.data.launchRecordId);
-      },
       { connection: getBullMQConnection(), concurrency: 1 }
     );
   });
 
   afterAll(async () => {
     await enrichmentWorker.close();
-    await accountMonitorWorker.close();
   });
 
   it('3a - Image OCR text feeds into AI filters and extraction', async () => {
@@ -81,10 +64,6 @@ describe('Scenario 3: OCR Provides the Crypto Signal', () => {
         publicMetrics: { followersCount: 100, followingCount: 50, tweetCount: 20 },
       });
 
-    nock('https://twitterapi.io')
-      .post('/api/webhook/rule')
-      .reply(200, { id: 'rule_ocr', label: 'account_newproject_xyz', filter: '', intervalSeconds: 120 });
-
     const { tweetData, ruleLabel } = makeTierBPayload({
       text: 'Something big is coming tomorrow 👀',
       author: {
@@ -98,7 +77,7 @@ describe('Scenario 3: OCR Provides the Crypto Signal', () => {
     await ingestTweet(tweetData, ruleLabel);
 
     const record = await waitForLaunchRecord('newproject_xyz');
-    await waitForQueueDrain([enrichmentQueue, accountMonitorQueue], 15000);
+    await waitForQueueDrain([enrichmentQueue], 15000);
 
     const tesseractMock = getTesseractMock();
     expect(tesseractMock).toHaveBeenCalledWith(
@@ -144,10 +123,6 @@ describe('Scenario 3: OCR Provides the Crypto Signal', () => {
         publicMetrics: { followersCount: 100, followingCount: 50, tweetCount: 10 },
       });
 
-    nock('https://twitterapi.io')
-      .post('/api/webhook/rule')
-      .reply(200, { id: 'rule_fail', label: 'account_fail_ocr_user', filter: '', intervalSeconds: 120 });
-
     const { tweetData, ruleLabel } = makeTierBPayload({
       text: 'launching soon — our new DeFi protocol on Ethereum!',
       author: {
@@ -160,7 +135,7 @@ describe('Scenario 3: OCR Provides the Crypto Signal', () => {
     await ingestTweet(tweetData, ruleLabel);
 
     const record = await waitForLaunchRecord('fail_ocr_user');
-    await waitForQueueDrain([enrichmentQueue, accountMonitorQueue], 15000);
+    await waitForQueueDrain([enrichmentQueue], 15000);
 
     const signals = await getTweetSignals(record.id);
     expect(signals.length).toBeGreaterThanOrEqual(1);

@@ -21,39 +21,22 @@ import { ingestTweet } from '../../services/ingest.service.js';
 import { enrichLaunch } from '../../services/enrichment.service.js';
 import { getBullMQConnection, redis } from '../../redis.js';
 import { enrichmentQueue } from '../../queues/enrichment.queue.js';
-import { accountMonitorQueue } from '../../queues/account-monitor.queue.js';
-import { RuleManagerService } from '../../services/rule-manager.service.js';
 import { prisma } from '../../db/client.js';
-import type { EnrichmentJobData, AccountMonitorJobData } from '../../types/index.js';
+import type { EnrichmentJobData } from '../../types/index.js';
 
 describe('Scenario 6: Deduplication', () => {
   let enrichmentWorker: Worker<EnrichmentJobData>;
-  let accountMonitorWorker: Worker<AccountMonitorJobData>;
-  let ruleManager: RuleManagerService;
 
   beforeAll(async () => {
-    ruleManager = new RuleManagerService(redis);
-    await redis.set('rule:active_count', '5');
-    await redis.set('rule:max_rules', '50');
-
     enrichmentWorker = new Worker<EnrichmentJobData>(
       'enrich-launch',
       async (job) => { await enrichLaunch(job.data.launchRecordId); },
-      { connection: getBullMQConnection(), concurrency: 1 }
-    );
-
-    accountMonitorWorker = new Worker<AccountMonitorJobData>(
-      'register-account-monitor',
-      async (job) => {
-        await ruleManager.registerAccountMonitor(job.data.twitterHandle, job.data.launchRecordId);
-      },
       { connection: getBullMQConnection(), concurrency: 1 }
     );
   });
 
   afterAll(async () => {
     await enrichmentWorker.close();
-    await accountMonitorWorker.close();
   });
 
   function mockProfileForHandle(handle: string): void {
@@ -69,17 +52,6 @@ describe('Scenario 6: Deduplication', () => {
       });
   }
 
-  function mockRuleCreation(): void {
-    nock('https://twitterapi.io')
-      .post('/api/webhook/rule')
-      .reply(200, {
-        id: `rule_${Date.now()}`,
-        label: 'account_test',
-        filter: '',
-        intervalSeconds: 120,
-      });
-  }
-
   async function sendTweet(payload: TestTweetPayload): Promise<void> {
     await ingestTweet(payload.tweetData, payload.ruleLabel);
   }
@@ -89,7 +61,6 @@ describe('Scenario 6: Deduplication', () => {
     mockStage2Yes();
     mockExtractor({ projectName: 'AquaFi', ticker: 'AQUA', chain: 'Solana' });
     mockProfileForHandle('aquafi_official');
-    mockRuleCreation();
 
     const tweet1 = makeTierBPayload({
       text: 'AquaFi launching on Solana tomorrow 🌊',
@@ -98,13 +69,12 @@ describe('Scenario 6: Deduplication', () => {
 
     await sendTweet(tweet1);
     await waitForLaunchRecord('aquafi_official');
-    await waitForQueueDrain([enrichmentQueue, accountMonitorQueue], 15000);
+    await waitForQueueDrain([enrichmentQueue], 15000);
 
     mockStage1Yes();
     mockStage2Yes();
     mockExtractor({ projectName: 'AquaFi', ticker: 'AQUA', chain: 'Solana' });
     mockProfileForHandle('crypto_influencer_99');
-    mockRuleCreation();
 
     const tweet2 = makeTierBPayload({
       text: 'excited for @aquafi_official launch tomorrow on Solana $AQUA',
@@ -113,13 +83,12 @@ describe('Scenario 6: Deduplication', () => {
 
     await sendTweet(tweet2);
     await waitForLaunchRecord('crypto_influencer_99');
-    await waitForQueueDrain([enrichmentQueue, accountMonitorQueue], 15000);
+    await waitForQueueDrain([enrichmentQueue], 15000);
 
     mockStage1Yes();
     mockStage2Yes();
     mockExtractor({ projectName: 'AquaFi', chain: 'Solana' });
     mockProfileForHandle('sol_degen_trader');
-    mockRuleCreation();
 
     const tweet3 = makeTierBPayload({
       text: 'just whitelisted for AquaFi presale launching on #Solana',
@@ -128,7 +97,7 @@ describe('Scenario 6: Deduplication', () => {
 
     await sendTweet(tweet3);
     await waitForLaunchRecord('sol_degen_trader');
-    await waitForQueueDrain([enrichmentQueue, accountMonitorQueue], 15000);
+    await waitForQueueDrain([enrichmentQueue], 15000);
 
     const totalRecords = await prisma.launchRecord.count();
     expect(totalRecords).toBe(3);
@@ -139,7 +108,6 @@ describe('Scenario 6: Deduplication', () => {
     mockStage2Yes();
     mockExtractor({ projectName: 'DupeTest', chain: 'Ethereum' });
     mockProfileForHandle('dupe_test_user');
-    mockRuleCreation();
 
     const payload = makeTierBPayload({
       tweetId: 'fixed_tweet_id_for_dedup_test',
@@ -149,7 +117,7 @@ describe('Scenario 6: Deduplication', () => {
 
     await sendTweet(payload);
     await waitForLaunchRecord('dupe_test_user');
-    await waitForQueueDrain([enrichmentQueue, accountMonitorQueue], 15000);
+    await waitForQueueDrain([enrichmentQueue], 15000);
 
     await ingestTweet(payload.tweetData, payload.ruleLabel);
 
@@ -169,7 +137,6 @@ describe('Scenario 6: Deduplication', () => {
     mockStage2Yes();
     mockExtractor({ projectName: 'ProjectA', ticker: 'TKNA', chain: 'Solana' });
     mockProfileForHandle('multi_project_dev');
-    mockRuleCreation();
 
     const tweet1 = makeTierBPayload({
       text: 'ProjectA ($TKNA) launching on Solana!',
@@ -178,7 +145,7 @@ describe('Scenario 6: Deduplication', () => {
 
     await sendTweet(tweet1);
     await waitForLaunchRecord('multi_project_dev');
-    await waitForQueueDrain([enrichmentQueue, accountMonitorQueue], 15000);
+    await waitForQueueDrain([enrichmentQueue], 15000);
 
     mockStage1Yes();
     mockStage2Yes();
@@ -192,7 +159,7 @@ describe('Scenario 6: Deduplication', () => {
 
     await sendTweet(tweet2);
     await new Promise(r => setTimeout(r, 500));
-    await waitForQueueDrain([enrichmentQueue, accountMonitorQueue], 15000);
+    await waitForQueueDrain([enrichmentQueue], 15000);
 
     const count = await prisma.launchRecord.count({
       where: { twitterHandle: 'multi_project_dev' },
@@ -210,7 +177,6 @@ describe('Scenario 6: Deduplication', () => {
     mockStage2Yes();
     mockExtractor({ projectName: 'AquaFi', ticker: 'AQUA', chain: 'Solana' });
     mockProfileForHandle('aqua_official_2');
-    mockRuleCreation();
 
     const tweet1 = makeTierBPayload({
       text: 'AquaFi launching on Solana!',
@@ -219,7 +185,7 @@ describe('Scenario 6: Deduplication', () => {
 
     await sendTweet(tweet1);
     await waitForLaunchRecord('aqua_official_2');
-    await waitForQueueDrain([enrichmentQueue, accountMonitorQueue], 15000);
+    await waitForQueueDrain([enrichmentQueue], 15000);
 
     mockStage1Yes();
     mockStage2Yes();
@@ -238,7 +204,7 @@ describe('Scenario 6: Deduplication', () => {
 
     await sendTweet(tweet2);
     await new Promise(r => setTimeout(r, 500));
-    await waitForQueueDrain([enrichmentQueue, accountMonitorQueue], 15000);
+    await waitForQueueDrain([enrichmentQueue], 15000);
 
     const count = await prisma.launchRecord.count({
       where: { twitterHandle: 'aqua_official_2' },
