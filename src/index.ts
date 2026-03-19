@@ -5,12 +5,12 @@ const log = createChildLogger('bootstrap');
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { config } from './config.js';
-import { redis } from './redis.js';
 import { registerLaunchRoutes } from './routes/launches.js';
-import { RuleManagerService } from './services/rule-manager.service.js';
+
 import { TwitterStreamClient } from './services/twitter-stream.service.js';
+import { registerStaticRules } from './services/twitterapi.service.js';
 import { startEnrichmentWorker } from './workers/enrichment.worker.js';
-import { startAccountMonitorWorker } from './workers/account-monitor.worker.js';
+import { startAccountPollWorker } from './workers/account-poll.worker.js';
 import { startCronWorker } from './workers/cron.worker.js';
 import { scheduleCronJobs } from './queues/cron.queue.js';
 import { warmupTesseract } from './ocr/image-ocr.js';
@@ -46,20 +46,9 @@ async function bootstrap(): Promise<void> {
     log.warn('Tesseract warmup failed', { err });
   });
 
-  // Initialize RuleManagerService
-  const ruleManager = new RuleManagerService(redis);
-
-  try {
-    await ruleManager.initialize();
-    log.info('RuleManagerService initialized');
-  } catch (err) {
-    log.error('Failed to initialize RuleManagerService', { err });
-    // Non-fatal — continue startup
-  }
-
   // Register static Tier A + Tier B rules (idempotent)
   try {
-    await ruleManager.registerStaticRules();
+    await registerStaticRules();
     log.info('Static rules registered');
   } catch (err) {
     log.error('Failed to register static rules', { err });
@@ -68,8 +57,8 @@ async function bootstrap(): Promise<void> {
 
   // Start BullMQ workers
   startEnrichmentWorker();
-  startAccountMonitorWorker(ruleManager);
-  startCronWorker(ruleManager);
+  startAccountPollWorker();
+  startCronWorker();
 
   await scheduleCronJobs();
 

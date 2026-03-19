@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
 import { config } from '../config.js';
+import { redis } from '../redis.js';
 import { createChildLogger } from '../logger.js';
 import type {
   TwitterApiRule,
@@ -152,6 +153,64 @@ export async function deleteRule(ruleId: string): Promise<void> {
   }
 }
 
+// Static rule definitions (Tier A + Tier B)
+const STATIC_RULES = [
+  {
+    label: 'chain_sol',
+    filter:
+      '("launching on solana" OR "launching on #solana" OR "launching on sol" OR "launching on #sol" OR "built on solana" OR "built on #solana") -is:retweet lang:en',
+  },
+  {
+    label: 'chain_eth',
+    filter:
+      '("launching on ethereum" OR "launching on #ethereum" OR "built on ethereum" OR "built on #ethereum" OR "launching on base" OR "launching on #base" OR "built on base" OR "built on #base") -is:retweet lang:en',
+  },
+  {
+    label: 'chain_bsc',
+    filter:
+      '("launching on binance" OR "launching on #binance" OR "launching on bsc" OR "launching on #bsc" OR "built on binance" OR "built on bsc" OR "built on #binance" OR "built on #bsc") -is:retweet lang:en',
+  },
+  {
+    label: 'chain_pump',
+    filter:
+      '("launching on pump.fun" OR "launching on pumpfun") -is:retweet lang:en',
+  },
+  {
+    label: 'time_signals',
+    filter:
+      '("launching tomorrow" OR "launching soon" OR "launching today" OR "goes live tomorrow" OR "goes live soon" OR "launching next week") -is:retweet lang:en',
+  },
+];
+
+/**
+ * Idempotently register static Tier A + Tier B rules.
+ * Skips a rule if one with the same label already exists.
+ */
+export async function registerStaticRules(): Promise<void> {
+  let existingLabels: Set<string>;
+  try {
+    const rulesData = await listRules();
+    existingLabels = new Set(rulesData.rules.map(r => r.label));
+  } catch (err) {
+    log.error('Failed to fetch existing rules for static registration', { err });
+    existingLabels = new Set();
+  }
+
+  for (const rule of STATIC_RULES) {
+    if (existingLabels.has(rule.label)) {
+      log.debug('Static rule already exists, skipping', { label: rule.label });
+      continue;
+    }
+
+    try {
+      await createRule(rule.label, rule.filter, config.WEBHOOK_POLL_INTERVAL_SECONDS);
+      log.info('Registered static rule', { label: rule.label });
+    } catch (err) {
+      log.error('Failed to register static rule', { label: rule.label, err });
+    }
+  }
+}
+
 /**
  * Infer max rules from the API response or return a safe conservative default.
  * The API may return a maxRules field; if not, default to 50 as a safe threshold.
@@ -185,6 +244,14 @@ interface UserInfoApiData {
 
 export async function getUserInfo(userName: string): Promise<UserInfoResponse | null> {
   try {
+    // Per-handle cooldown to avoid 429s from concurrent enrichment jobs
+    const cooldownKey = `getUserInfo:cooldown:${userName}`;
+    const onCooldown = await redis.exists(cooldownKey);
+    if (onCooldown) {
+      log.debug('getUserInfo on cooldown, skipping', { userName });
+      return null;
+    }
+
     const url = new URL(`${BASE_URL}/twitter/user/info`);
     url.searchParams.set('userName', userName);
 
@@ -192,6 +259,9 @@ export async function getUserInfo(userName: string): Promise<UserInfoResponse | 
       method: 'GET',
       headers: headers(),
     });
+
+    // Set 60s cooldown after any call (success or failure)
+    await redis.set(cooldownKey, '1', 'EX', 60);
 
     if (!res.ok) {
       log.warn('getUserInfo failed', { userName, status: res.status });
@@ -234,13 +304,17 @@ export async function getUserInfo(userName: string): Promise<UserInfoResponse | 
 export async function advancedSearch(
   query: string,
   queryType: 'Latest' | 'Top' = 'Latest',
-  cursor?: string
+  cursor?: string,
+  since?: Date
 ): Promise<AdvancedSearchResult> {
   const url = new URL(`${BASE_URL}/twitter/tweet/advanced_search`);
   url.searchParams.set('query', query);
   url.searchParams.set('queryType', queryType);
   if (cursor) {
     url.searchParams.set('cursor', cursor);
+  }
+  if (since) {
+    url.searchParams.set('start_time', since.toISOString());
   }
 
   const res = await fetch(url.toString(), {

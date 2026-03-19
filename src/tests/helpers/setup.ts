@@ -9,7 +9,7 @@ import { resetTestData } from './db-helpers.js';
 import { prisma } from '../../db/client.js';
 import { redis } from '../../redis.js';
 import { enrichmentQueue } from '../../queues/enrichment.queue.js';
-import { accountMonitorQueue } from '../../queues/account-monitor.queue.js';
+import { accountPollQueue } from '../../queues/account-poll.queue.js';
 
 beforeAll(async () => {
   // Run Prisma migrations on the test database
@@ -38,7 +38,7 @@ beforeEach(async () => {
 afterEach(async () => {
   // Drain any leftover jobs FIRST (before cleanup breaks their DB writes)
   await enrichmentQueue.obliterate({ force: true }).catch(() => {});
-  await accountMonitorQueue.obliterate({ force: true }).catch(() => {});
+  await accountPollQueue.obliterate({ force: true }).catch(() => {});
 
   // Small delay to let any in-flight workers finish
   await new Promise(r => setTimeout(r, 100));
@@ -66,7 +66,7 @@ afterAll(async () => {
   }
 
   await enrichmentQueue.close();
-  await accountMonitorQueue.close();
+  await accountPollQueue.close();
   await redis.quit();
   await prisma.$disconnect();
 });

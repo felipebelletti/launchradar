@@ -21,39 +21,22 @@ import { ingestTweet } from '../../services/ingest.service.js';
 import { enrichLaunch } from '../../services/enrichment.service.js';
 import { getBullMQConnection, redis } from '../../redis.js';
 import { enrichmentQueue } from '../../queues/enrichment.queue.js';
-import { accountMonitorQueue } from '../../queues/account-monitor.queue.js';
-import { RuleManagerService } from '../../services/rule-manager.service.js';
 import { prisma } from '../../db/client.js';
-import type { EnrichmentJobData, AccountMonitorJobData } from '../../types/index.js';
+import type { EnrichmentJobData } from '../../types/index.js';
 
 describe('Scenario 4: Progressive Enrichment', () => {
   let enrichmentWorker: Worker<EnrichmentJobData>;
-  let accountMonitorWorker: Worker<AccountMonitorJobData>;
-  let ruleManager: RuleManagerService;
 
   beforeAll(async () => {
-    ruleManager = new RuleManagerService(redis);
-    await redis.set('rule:active_count', '5');
-    await redis.set('rule:max_rules', '50');
-
     enrichmentWorker = new Worker<EnrichmentJobData>(
       'enrich-launch',
       async (job) => { await enrichLaunch(job.data.launchRecordId); },
-      { connection: getBullMQConnection(), concurrency: 1 }
-    );
-
-    accountMonitorWorker = new Worker<AccountMonitorJobData>(
-      'register-account-monitor',
-      async (job) => {
-        await ruleManager.registerAccountMonitor(job.data.twitterHandle, job.data.launchRecordId);
-      },
       { connection: getBullMQConnection(), concurrency: 1 }
     );
   });
 
   afterAll(async () => {
     await enrichmentWorker.close();
-    await accountMonitorWorker.close();
   });
 
   function mockProfileLookup(): void {
@@ -86,15 +69,6 @@ describe('Scenario 4: Progressive Enrichment', () => {
     });
     mockProfileLookup();
 
-    nock('https://twitterapi.io')
-      .post('/api/webhook/rule')
-      .reply(200, {
-        id: 'rule_solrise',
-        label: 'account_solrise_finance',
-        filter: 'from:solrise_finance -is:retweet',
-        intervalSeconds: 120,
-      });
-
     const tweet1 = makeTierBPayload({
       text: 'something HUGE launching soon, stay tuned 👀',
       author: {
@@ -108,7 +82,7 @@ describe('Scenario 4: Progressive Enrichment', () => {
     await sendTweet(tweet1);
 
     let record = await waitForLaunchRecord('solrise_finance');
-    await waitForQueueDrain([enrichmentQueue, accountMonitorQueue], 15000);
+    await waitForQueueDrain([enrichmentQueue], 15000);
 
     const countAfterTweet1 = await prisma.launchRecord.count({
       where: { twitterHandle: 'solrise_finance' },
@@ -144,7 +118,7 @@ describe('Scenario 4: Progressive Enrichment', () => {
     });
 
     await sendTweet(tweet2);
-    await waitForQueueDrain([enrichmentQueue, accountMonitorQueue], 15000);
+    await waitForQueueDrain([enrichmentQueue], 15000);
 
     const countAfterTweet2 = await prisma.launchRecord.count({
       where: { twitterHandle: 'solrise_finance' },
@@ -191,7 +165,7 @@ describe('Scenario 4: Progressive Enrichment', () => {
     });
 
     await sendTweet(tweet3);
-    await waitForQueueDrain([enrichmentQueue, accountMonitorQueue], 15000);
+    await waitForQueueDrain([enrichmentQueue], 15000);
 
     const countAfterTweet3 = await prisma.launchRecord.count({
       where: { twitterHandle: 'solrise_finance' },

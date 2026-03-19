@@ -10,7 +10,7 @@ const configSchema = z.object({
   WEBHOOK_POLL_INTERVAL_SECONDS: z.coerce.number().default(60),
   DAILY_CREDIT_BUDGET: z.coerce.number().default(100000),
   ACCOUNT_MONITOR_TTL_DAYS: z.coerce.number().default(15),
-  TIER_C_POLL_INTERVAL_SECONDS: z.coerce.number().default(120),
+  ACCOUNT_POLL_INTERVAL_MS: z.coerce.number().default(300000),
 });
 
 const parsed = configSchema.safeParse(process.env);

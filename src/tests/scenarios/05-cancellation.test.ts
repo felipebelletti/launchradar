@@ -22,21 +22,13 @@ import { enrichLaunch } from '../../services/enrichment.service.js';
 import { isCancellationSignal } from '../../ai/cancellation.js';
 import { getBullMQConnection, redis } from '../../redis.js';
 import { enrichmentQueue } from '../../queues/enrichment.queue.js';
-import { accountMonitorQueue } from '../../queues/account-monitor.queue.js';
-import { RuleManagerService } from '../../services/rule-manager.service.js';
 import { prisma } from '../../db/client.js';
-import type { EnrichmentJobData, AccountMonitorJobData } from '../../types/index.js';
+import type { EnrichmentJobData } from '../../types/index.js';
 
 describe('Scenario 5: Cancellation', () => {
   let enrichmentWorker: Worker<EnrichmentJobData>;
-  let accountMonitorWorker: Worker<AccountMonitorJobData>;
-  let ruleManager: RuleManagerService;
 
   beforeAll(async () => {
-    ruleManager = new RuleManagerService(redis);
-    await redis.set('rule:active_count', '5');
-    await redis.set('rule:max_rules', '50');
-
     enrichmentWorker = new Worker<EnrichmentJobData>(
       'enrich-launch',
       async (job) => {
@@ -63,19 +55,10 @@ describe('Scenario 5: Cancellation', () => {
       },
       { connection: getBullMQConnection(), concurrency: 1 }
     );
-
-    accountMonitorWorker = new Worker<AccountMonitorJobData>(
-      'register-account-monitor',
-      async (job) => {
-        await ruleManager.registerAccountMonitor(job.data.twitterHandle, job.data.launchRecordId);
-      },
-      { connection: getBullMQConnection(), concurrency: 1 }
-    );
   });
 
   afterAll(async () => {
     await enrichmentWorker.close();
-    await accountMonitorWorker.close();
   });
 
   it('should transition a CONFIRMED record to CANCELLED on postponement tweet', async () => {
@@ -111,15 +94,6 @@ describe('Scenario 5: Cancellation', () => {
         isBlueVerified: true,
       });
 
-    nock('https://twitterapi.io')
-      .post('/api/webhook/rule')
-      .reply(200, {
-        id: 'rule_mv',
-        label: 'account_metavault_team',
-        filter: 'from:metavault_team -is:retweet',
-        intervalSeconds: 120,
-      });
-
     const tweet1 = makeTierAPayload('chain_eth', {
       text: 'MetaVault launching on Ethereum next Friday',
       author: {
@@ -134,7 +108,7 @@ describe('Scenario 5: Cancellation', () => {
     await ingestTweet(tweet1.tweetData, tweet1.ruleLabel);
 
     await waitForLaunchRecord('metavault_team');
-    await waitForQueueDrain([enrichmentQueue, accountMonitorQueue], 15000);
+    await waitForQueueDrain([enrichmentQueue], 15000);
 
     let record = (await findLaunchByHandle('metavault_team'))!;
     expect(record.projectName).toBe('MetaVault');
@@ -167,7 +141,7 @@ describe('Scenario 5: Cancellation', () => {
 
     await ingestTweet(tweet2.tweetData, tweet2.ruleLabel);
 
-    await waitForQueueDrain([enrichmentQueue, accountMonitorQueue], 15000);
+    await waitForQueueDrain([enrichmentQueue], 15000);
 
     record = await waitForStatus('metavault_team', 'CANCELLED', 10000);
     expect(record.status).toBe('CANCELLED');

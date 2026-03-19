@@ -1,14 +1,42 @@
 import { Worker } from 'bullmq';
 import { getBullMQConnection } from '../redis.js';
+import { prisma } from '../db/client.js';
+import { deregisterAccountPolling } from '../queues/account-poll.queue.js';
+import { config } from '../config.js';
 import type { CronJobData } from '../queues/cron.queue.js';
-import type { RuleManagerService } from '../services/rule-manager.service.js';
 import { createChildLogger } from '../logger.js';
 
 const log = createChildLogger('cron-worker');
 
-export function startCronWorker(
-  ruleManager: RuleManagerService
-): Worker<CronJobData> {
+async function expireStaleMonitors(): Promise<void> {
+  const cutoff = new Date(Date.now() - config.ACCOUNT_MONITOR_TTL_DAYS * 86400000);
+
+  const stale = await prisma.monitoredAccount.findMany({
+    where: {
+      active: true,
+      lastTweetAt: { lt: cutoff },
+    },
+  });
+
+  log.info('Expiring stale monitored accounts', { count: stale.length });
+
+  for (const monitor of stale) {
+    try {
+      await deregisterAccountPolling(monitor.twitterHandle);
+
+      await prisma.monitoredAccount.update({
+        where: { id: monitor.id },
+        data: { active: false },
+      });
+
+      log.info('Expired stale monitor', { twitterHandle: monitor.twitterHandle });
+    } catch (err) {
+      log.error('Failed to expire account', { twitterHandle: monitor.twitterHandle, err });
+    }
+  }
+}
+
+export function startCronWorker(): Worker<CronJobData> {
   const worker = new Worker<CronJobData>(
     'cron-jobs',
     async (job) => {
@@ -16,7 +44,7 @@ export function startCronWorker(
       log.info('Running cron job', { jobName });
 
       if (jobName === 'expire-stale-monitors') {
-        await ruleManager.expireStale();
+        await expireStaleMonitors();
       } else {
         log.warn('Unknown cron job', { jobName });
       }
