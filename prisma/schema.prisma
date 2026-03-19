@@ -1,0 +1,97 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model LaunchRecord {
+  id                   String       @id @default(cuid())
+  projectName          String
+  ticker               String?
+  launchDate           DateTime?
+  launchDateRaw        String?
+  launchDateConfidence Float?
+  launchType           String?
+  chain                String?
+  category             String?
+  website              String?
+  whitepaper           String?
+  twitterHandle        String?
+  twitterFollowers     Int?
+  isVerifiedAccount    Boolean      @default(false)
+  confidenceScore      Float        @default(0)
+  status               LaunchStatus @default(STUB)
+  ruleSource           RuleSource   @default(TIER_B)
+  sources              LaunchSource[]
+  tweets               TweetSignal[]
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  launchedAt           DateTime?
+}
+
+model TweetSignal {
+  id             String        @id @default(cuid())
+  tweetId        String        @unique
+  text           String
+  imageUrls      String[]      @default([])
+  imageOcrText   String?
+  authorHandle   String
+  authorId       String
+  likes          Int           @default(0)
+  retweets       Int           @default(0)
+  createdAt      DateTime
+  ingestedAt     DateTime      @default(now())
+  launchRecordId String?
+  launchRecord   LaunchRecord? @relation(fields: [launchRecordId], references: [id])
+}
+
+model LaunchSource {
+  id             String       @id @default(cuid())
+  type           SourceType
+  url            String
+  rawContent     String?
+  extractedData  Json?
+  launchRecordId String
+  launchRecord   LaunchRecord @relation(fields: [launchRecordId], references: [id])
+  createdAt      DateTime     @default(now())
+}
+
+model MonitoredAccount {
+  id              String    @id @default(cuid())
+  twitterHandle   String    @unique
+  twitterId       String?
+  webhookRuleId   String?
+  active          Boolean   @default(false)
+  queued          Boolean   @default(false)
+  activatedAt     DateTime?
+  lastTweetAt     DateTime?
+  launchRecordId  String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum LaunchStatus {
+  STUB
+  PARTIAL
+  CONFIRMED
+  VERIFIED
+  STALE
+  CANCELLED
+}
+
+enum SourceType {
+  TWEET
+  PROFILE
+  WEBSITE
+  MANUAL
+  IMAGE_OCR
+}
+
+enum RuleSource {
+  TIER_A
+  TIER_B
+  TIER_C
+}

@@ -1,0 +1,188 @@
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import nock from 'nock';
+import { Worker } from 'bullmq';
+
+import '../helpers/ocr-mock.js';
+import {
+  mockExtractor,
+  mockCancellationYes,
+  mockCancellationNo,
+  getAiCallLog,
+} from '../helpers/ai-mock.js';
+import { makeTierAPayload, makeTierCPayload } from '../helpers/fixtures.js';
+import {
+  waitForLaunchRecord,
+  findLaunchByHandle,
+  getTweetSignals,
+  waitForQueueDrain,
+  waitForStatus,
+} from '../helpers/db-helpers.js';
+import { ingestTweet } from '../../services/ingest.service.js';
+import { enrichLaunch } from '../../services/enrichment.service.js';
+import { isCancellationSignal } from '../../ai/cancellation.js';
+import { getBullMQConnection, redis } from '../../redis.js';
+import { enrichmentQueue } from '../../queues/enrichment.queue.js';
+import { accountMonitorQueue } from '../../queues/account-monitor.queue.js';
+import { RuleManagerService } from '../../services/rule-manager.service.js';
+import { prisma } from '../../db/client.js';
+import type { EnrichmentJobData, AccountMonitorJobData } from '../../types/index.js';
+
+describe('Scenario 5: Cancellation', () => {
+  let enrichmentWorker: Worker<EnrichmentJobData>;
+  let accountMonitorWorker: Worker<AccountMonitorJobData>;
+  let ruleManager: RuleManagerService;
+
+  beforeAll(async () => {
+    ruleManager = new RuleManagerService(redis);
+    await redis.set('rule:active_count', '5');
+    await redis.set('rule:max_rules', '50');
+
+    enrichmentWorker = new Worker<EnrichmentJobData>(
+      'enrich-launch',
+      async (job) => {
+        const record = await prisma.launchRecord.findUnique({
+          where: { id: job.data.launchRecordId },
+          include: { tweets: { orderBy: { createdAt: 'desc' }, take: 1 } },
+        });
+
+        if (!record) return;
+
+        const latestTweet = record.tweets[0];
+        if (latestTweet) {
+          const isCancellation = await isCancellationSignal(latestTweet.text);
+          if (isCancellation) {
+            await prisma.launchRecord.update({
+              where: { id: record.id },
+              data: { status: 'CANCELLED' },
+            });
+            return;
+          }
+        }
+
+        await enrichLaunch(job.data.launchRecordId);
+      },
+      { connection: getBullMQConnection(), concurrency: 1 }
+    );
+
+    accountMonitorWorker = new Worker<AccountMonitorJobData>(
+      'register-account-monitor',
+      async (job) => {
+        await ruleManager.registerAccountMonitor(job.data.twitterHandle, job.data.launchRecordId);
+      },
+      { connection: getBullMQConnection(), concurrency: 1 }
+    );
+  });
+
+  afterAll(async () => {
+    await enrichmentWorker.close();
+    await accountMonitorWorker.close();
+  });
+
+  it('should transition a CONFIRMED record to CANCELLED on postponement tweet', async () => {
+    // === Tweet 1 (Tier A — initial detection) ===
+    mockCancellationNo();
+    mockExtractor({
+      projectName: 'MetaVault',
+      chain: 'Ethereum',
+      launchDate: '2025-03-21T00:00:00Z',
+      launchDateRaw: 'next Friday',
+      launchType: 'mainnet',
+      website: 'metavault.io',
+      category: 'DeFi',
+      confidence: {
+        projectName: 0.95,
+        chain: 0.95,
+        launchDate: 0.85,
+        website: 0.9,
+      },
+    });
+
+    nock('https://twitterapi.io')
+      .get('/api/twitter/user/info')
+      .query({ userName: 'metavault_team' })
+      .reply(200, {
+        id: 'user_mv',
+        userName: 'metavault_team',
+        name: 'MetaVault',
+        description: 'DeFi protocol on Ethereum',
+        website: 'https://metavault.io',
+        publicMetrics: { followersCount: 5000, followingCount: 300, tweetCount: 800 },
+        isVerified: false,
+        isBlueVerified: true,
+      });
+
+    nock('https://twitterapi.io')
+      .post('/api/webhook/rule')
+      .reply(200, {
+        id: 'rule_mv',
+        label: 'account_metavault_team',
+        filter: 'from:metavault_team -is:retweet',
+        intervalSeconds: 120,
+      });
+
+    const tweet1 = makeTierAPayload('chain_eth', {
+      text: 'MetaVault launching on Ethereum next Friday',
+      author: {
+        userName: 'metavault_team',
+        name: 'MetaVault',
+        description: 'DeFi protocol on Ethereum',
+        followers: 5000,
+        isBlueVerified: true,
+      },
+    });
+
+    await ingestTweet(tweet1.tweetData, tweet1.ruleLabel);
+
+    await waitForLaunchRecord('metavault_team');
+    await waitForQueueDrain([enrichmentQueue, accountMonitorQueue], 15000);
+
+    let record = (await findLaunchByHandle('metavault_team'))!;
+    expect(record.projectName).toBe('MetaVault');
+    expect(['CONFIRMED', 'VERIFIED', 'PARTIAL']).toContain(record.status);
+
+    // === Tweet 2 (Tier C — cancellation signal) ===
+    mockCancellationYes();
+
+    nock('https://twitterapi.io')
+      .get('/api/twitter/user/info')
+      .query({ userName: 'metavault_team' })
+      .optionally()
+      .reply(200, {
+        id: 'user_mv',
+        userName: 'metavault_team',
+        name: 'MetaVault',
+        description: 'DeFi protocol on Ethereum',
+        publicMetrics: { followersCount: 5000, followingCount: 300, tweetCount: 800 },
+      });
+
+    const tweet2 = makeTierCPayload('metavault_team', {
+      text: "We're postponing the MetaVault launch due to audit delays. New date TBD. Sorry everyone.",
+      author: {
+        userName: 'metavault_team',
+        name: 'MetaVault',
+        description: 'DeFi protocol on Ethereum',
+        followers: 5000,
+      },
+    });
+
+    await ingestTweet(tweet2.tweetData, tweet2.ruleLabel);
+
+    await waitForQueueDrain([enrichmentQueue, accountMonitorQueue], 15000);
+
+    record = await waitForStatus('metavault_team', 'CANCELLED', 10000);
+    expect(record.status).toBe('CANCELLED');
+
+    const count = await prisma.launchRecord.count({
+      where: { twitterHandle: 'metavault_team' },
+    });
+    expect(count).toBe(1);
+
+    const signals = await getTweetSignals(record.id);
+    expect(signals).toHaveLength(2);
+    expect(signals.some(s => s.text.includes('postponing'))).toBe(true);
+
+    const callsAfterTweet2 = getAiCallLog();
+    const sonnetCalls = callsAfterTweet2.filter(c => c.model === 'claude-sonnet-4-6');
+    expect(sonnetCalls).toHaveLength(1);
+  });
+});

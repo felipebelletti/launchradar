@@ -1,0 +1,9 @@
+dist/
+.env
+eng.traineddata
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+CLAUDE*
+logs/
