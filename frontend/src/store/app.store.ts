@@ -13,6 +13,7 @@ interface AppStore {
   drawerOpen: boolean;
   pendingCount: number;
   pendingIds: string[];
+  highlightedLaunchIds: string[];
   mode: AppMode;
   plan: Plan;
   connected: boolean;
@@ -27,6 +28,8 @@ interface AppStore {
   closeDrawer: () => void;
   addPending: (id: string) => void;
   flushPending: () => void;
+  setHighlightedLaunchIds: (ids: string[]) => void;
+  clearHighlightedLaunchIds: () => void;
   setMode: (mode: AppMode) => void;
   setConnected: (c: boolean) => void;
   closePanel: (id: string) => void;
@@ -45,6 +48,7 @@ export const useAppStore = create<AppStore>((set) => ({
   drawerOpen: false,
   pendingCount: 0,
   pendingIds: [],
+  highlightedLaunchIds: [],
   mode: 'terminal',
   plan: 'alpha',
   connected: false,
@@ -83,6 +87,11 @@ export const useAppStore = create<AppStore>((set) => ({
     })),
 
   flushPending: () => set({ pendingCount: 0, pendingIds: [] }),
+
+  setHighlightedLaunchIds: (ids) =>
+    set({ highlightedLaunchIds: [...new Set(ids)] }),
+
+  clearHighlightedLaunchIds: () => set({ highlightedLaunchIds: [] }),
 
   setMode: (mode) => set({ mode }),
 

@@ -28,6 +28,7 @@ function formatLaunchTime(
 
 export function LaunchCard({ launch }: { launch: LaunchRecord }) {
   const openDrawer = useAppStore((s) => s.openDrawer);
+  const isNewHighlight = useAppStore((s) => s.highlightedLaunchIds.includes(launch.id));
 
   return (
     <motion.div
@@ -39,6 +40,8 @@ export function LaunchCard({ launch }: { launch: LaunchRecord }) {
       transition={{ duration: 0.25, ease: 'easeOut' }}
       onClick={() => openDrawer(launch.id)}
       className={`p-3 rounded-lg border bg-radar-panel cursor-pointer transition-colors group ${
+        isNewHighlight ? 'launch-new-highlight ' : ''
+      }${
         launch.status === 'LIVE'
           ? 'border-cyan-500/30 hover:border-cyan-400/50 border-l-2 border-l-[#00D4FF]'
           : 'border-radar-border hover:border-radar-amber/20'

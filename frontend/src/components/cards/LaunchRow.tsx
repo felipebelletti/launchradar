@@ -36,6 +36,7 @@ function formatShortTime(date: string | null): string {
 
 export function LaunchRow({ launch, locked = false }: { launch: LaunchRecord; locked?: boolean }) {
   const openDrawer = useAppStore((s) => s.openDrawer);
+  const isNewHighlight = useAppStore((s) => s.highlightedLaunchIds.includes(launch.id));
 
   if (locked) {
     return (
@@ -54,10 +55,14 @@ export function LaunchRow({ launch, locked = false }: { launch: LaunchRecord; lo
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.2 }}
       onClick={() => openDrawer(launch.id)}
-      className="flex items-center gap-3 px-3 py-2 hover:bg-white/[0.03] cursor-pointer
-                 transition-colors rounded"
+      className={`flex items-center gap-3 px-3 py-2 hover:bg-white/[0.03] cursor-pointer
+                 transition-colors rounded ${isNewHighlight ? 'launch-new-highlight bg-radar-amber/[0.07]' : ''}`}
       style={{
-        borderLeft: launch.status === 'VERIFIED' ? '2px solid #00D4FF33' : '2px solid transparent',
+        borderLeft: isNewHighlight
+          ? '2px solid rgba(245, 197, 66, 0.65)'
+          : launch.status === 'VERIFIED'
+            ? '2px solid #00D4FF33'
+            : '2px solid transparent',
         opacity: launch.status === 'STUB' ? 0.5 : 1,
       }}
     >

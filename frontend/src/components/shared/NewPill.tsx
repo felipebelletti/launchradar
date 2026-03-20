@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAppStore } from '../../store/app.store';
 
@@ -6,12 +7,24 @@ export function NewPill() {
   const count = useAppStore((s) => s.pendingCount);
   const pendingIds = useAppStore((s) => s.pendingIds);
   const flushPending = useAppStore((s) => s.flushPending);
+  const setHighlightedLaunchIds = useAppStore((s) => s.setHighlightedLaunchIds);
+  const clearHighlightedLaunchIds = useAppStore((s) => s.clearHighlightedLaunchIds);
+  const highlightClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   if (count === 0) return null;
 
   async function handleClick() {
-    const ids = [...pendingIds];
+    const ids = [...new Set(pendingIds)];
     const scrollToId = ids[0];
+    if (highlightClearTimerRef.current) {
+      clearTimeout(highlightClearTimerRef.current);
+      highlightClearTimerRef.current = null;
+    }
+    setHighlightedLaunchIds(ids);
+    highlightClearTimerRef.current = setTimeout(() => {
+      clearHighlightedLaunchIds();
+      highlightClearTimerRef.current = null;
+    }, 12_000);
     flushPending();
     await Promise.all([
       queryClient.refetchQueries({ queryKey: ['launches'] }),
