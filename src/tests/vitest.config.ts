@@ -20,7 +20,7 @@ export default defineConfig({
       DATABASE_URL: process.env.DATABASE_URL_TEST ?? 'postgresql://felipe@localhost/launchradar_test',
       REDIS_URL: process.env.REDIS_URL ?? 'redis://localhost:6379/1',
       TWITTERAPI_KEY: 'test_twitterapi_key',
-      ANTHROPIC_API_KEY: 'test_anthropic_key',
+      XAI_API_KEY: 'test_xai_key',
       PORT: '0',
       WEBHOOK_POLL_INTERVAL_SECONDS: '60',
       DAILY_CREDIT_BUDGET: '100000',

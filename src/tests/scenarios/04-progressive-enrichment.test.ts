@@ -40,8 +40,8 @@ describe('Scenario 4: Progressive Enrichment', () => {
   });
 
   function mockProfileLookup(): void {
-    nock('https://twitterapi.io')
-      .get('/api/twitter/user/info')
+    nock('https://api.twitterapi.io')
+      .get('/twitter/user/info')
       .query({ userName: 'solrise_finance' })
       .reply(200, {
         id: 'user_solrise',

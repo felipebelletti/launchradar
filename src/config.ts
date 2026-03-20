@@ -4,7 +4,7 @@ const configSchema = z.object({
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().default('redis://localhost:6379'),
   TWITTERAPI_KEY: z.string().min(1),
-  ANTHROPIC_API_KEY: z.string().min(1),
+  XAI_API_KEY: z.string().min(1),
   PORT: z.coerce.number().default(3000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   WEBHOOK_POLL_INTERVAL_SECONDS: z.coerce.number().default(60),

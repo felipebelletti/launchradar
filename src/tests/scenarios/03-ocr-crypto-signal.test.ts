@@ -9,6 +9,7 @@ import {
   mockExtractor,
   getAiCallLog,
 } from '../helpers/ai-mock.js';
+import { GROK_MODEL } from '../../ai/client.js';
 import { makeTierBPayload } from '../helpers/fixtures.js';
 import {
   waitForLaunchRecord,
@@ -53,8 +54,8 @@ describe('Scenario 3: OCR Provides the Crypto Signal', () => {
       website: 'aquafi.io',
     });
 
-    nock('https://twitterapi.io')
-      .get('/api/twitter/user/info')
+    nock('https://api.twitterapi.io')
+      .get('/twitter/user/info')
       .query({ userName: 'newproject_xyz' })
       .reply(200, {
         id: 'user_ocr',
@@ -86,9 +87,9 @@ describe('Scenario 3: OCR Provides the Crypto Signal', () => {
     );
 
     const calls = getAiCallLog();
-    const haikuCalls = calls.filter(c => c.model === 'claude-haiku-4-5-20251001');
-    expect(haikuCalls.some(c => c.userContent.includes('AquaFi Protocol'))).toBe(true);
-    expect(haikuCalls.some(c => c.userContent.includes('Built on Solana'))).toBe(true);
+    const grokCalls = calls.filter(c => c.model === GROK_MODEL);
+    expect(grokCalls.some(c => c.userContent.includes('AquaFi Protocol'))).toBe(true);
+    expect(grokCalls.some(c => c.userContent.includes('Built on Solana'))).toBe(true);
 
     const signals = await getTweetSignals(record.id);
     expect(signals.length).toBeGreaterThanOrEqual(1);
@@ -112,8 +113,8 @@ describe('Scenario 3: OCR Provides the Crypto Signal', () => {
       chain: 'Ethereum',
     });
 
-    nock('https://twitterapi.io')
-      .get('/api/twitter/user/info')
+    nock('https://api.twitterapi.io')
+      .get('/twitter/user/info')
       .query({ userName: 'fail_ocr_user' })
       .reply(200, {
         id: 'user_fail_ocr',
@@ -143,7 +144,7 @@ describe('Scenario 3: OCR Provides the Crypto Signal', () => {
     expect(!ocrText || ocrText.length === 0).toBe(true);
 
     const calls = getAiCallLog();
-    const haikuCalls = calls.filter(c => c.model === 'claude-haiku-4-5-20251001');
-    expect(haikuCalls.length).toBeGreaterThanOrEqual(2);
+    const grokCalls = calls.filter(c => c.model === GROK_MODEL);
+    expect(grokCalls.length).toBeGreaterThanOrEqual(2);
   });
 });

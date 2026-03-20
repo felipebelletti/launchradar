@@ -1,22 +1,15 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { config } from '../config.js';
+import { xaiClient, GROK_MODEL } from './client.js';
 import { createChildLogger } from '../logger.js';
 
-const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 const log = createChildLogger('ai:classifier');
 
-const CLASSIFIER_MODEL = 'claude-haiku-4-5-20251001';
-
-/**
- * Stage 1: Binary launch announcement filter.
- * Runs on Tier B tweets only (Tier A tweets skip this — already chain-confirmed).
- */
 export async function isLaunchAnnouncement(
   tweetText: string,
   ocrText: string
 ): Promise<boolean> {
   const userContent = [
-    `Does this tweet announce, tease, or reference an upcoming launch, release, or go-live event of any product, project, or service? Reply with only "YES" or "NO".`,
+    `Does this tweet primarily announce, tease, or build anticipation for a FUTURE go-live: token listing, presale, mint, TGE, mainnet, airdrop, or similar? Reply only "YES" or "NO".`,
+    `Say NO for: price or performance news (surges, gains, % up, "within 24h after"), market recaps, "JUST IN" trading headlines, or anything describing a launch or listing that ALREADY happened.`,
     ``,
     `Tweet: "${tweetText}"`,
     ocrText ? `Image text: "${ocrText}"` : null,
@@ -25,34 +18,27 @@ export async function isLaunchAnnouncement(
     .join('\n');
 
   const start = Date.now();
-  log.info('Anthropic API call', {
-    call: 'stage1_launch_filter',
-    model: CLASSIFIER_MODEL,
-    tweetPreview: tweetText.slice(0, 80),
-  });
 
   try {
-    const response = await client.messages.create({
-      model: CLASSIFIER_MODEL,
-      max_tokens: 5,
-      system: 'You are a classifier. Reply with only "YES" or "NO".',
-      messages: [{ role: 'user', content: userContent }],
+    const response = await xaiClient.responses.create({
+      model: GROK_MODEL,
+      max_output_tokens: 5,
+      input: [
+        { role: 'system', content: 'You are a classifier. Reply with only "YES" or "NO".' },
+        { role: 'user', content: userContent },
+      ],
+      store: false,
     });
 
-    const text =
-      response.content[0].type === 'text'
-        ? response.content[0].text.trim().toUpperCase()
-        : 'NO';
+    const text = (response.output_text ?? 'NO').trim().toUpperCase();
     const result = text === 'YES';
 
-    log.info('Anthropic API response', {
-      call: 'stage1_launch_filter',
-      model: CLASSIFIER_MODEL,
+    const usage = response.usage as { input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number } | undefined;
+    log.debug('Stage 1 result', {
       result,
-      tweetText: tweetText,
       durationMs: Date.now() - start,
-      inputTokens: response.usage?.input_tokens,
-      outputTokens: response.usage?.output_tokens,
+      inputTokens: usage?.input_tokens ?? usage?.prompt_tokens,
+      outputTokens: usage?.output_tokens ?? usage?.completion_tokens,
     });
 
     return result;
@@ -62,10 +48,6 @@ export async function isLaunchAnnouncement(
   }
 }
 
-/**
- * Stage 2: Crypto relevance filter.
- * Runs on Tier B tweets that passed Stage 1. Tier A and Tier C tweets skip this.
- */
 export async function isCryptoRelated(
   tweetText: string,
   authorBio: string,
@@ -82,34 +64,27 @@ export async function isCryptoRelated(
     .join('\n');
 
   const start = Date.now();
-  log.info('Anthropic API call', {
-    call: 'stage2_crypto_filter',
-    model: CLASSIFIER_MODEL,
-    tweetPreview: tweetText.slice(0, 80),
-  });
 
   try {
-    const response = await client.messages.create({
-      model: CLASSIFIER_MODEL,
-      max_tokens: 5,
-      system: 'You are a classifier. Reply with only "YES" or "NO".',
-      messages: [{ role: 'user', content: userContent }],
+    const response = await xaiClient.responses.create({
+      model: GROK_MODEL,
+      max_output_tokens: 5,
+      input: [
+        { role: 'system', content: 'You are a classifier. Reply with only "YES" or "NO".' },
+        { role: 'user', content: userContent },
+      ],
+      store: false,
     });
 
-    const text =
-      response.content[0].type === 'text'
-        ? response.content[0].text.trim().toUpperCase()
-        : 'NO';
+    const text = (response.output_text ?? 'NO').trim().toUpperCase();
     const result = text === 'YES';
 
-    log.info('Anthropic API response', {
-      call: 'stage2_crypto_filter',
-      model: CLASSIFIER_MODEL,
+    const usage = response.usage as { input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number } | undefined;
+    log.debug('Stage 2 result', {
       result,
-      tweetText: tweetText,
       durationMs: Date.now() - start,
-      inputTokens: response.usage?.input_tokens,
-      outputTokens: response.usage?.output_tokens,
+      inputTokens: usage?.input_tokens ?? usage?.prompt_tokens,
+      outputTokens: usage?.output_tokens ?? usage?.completion_tokens,
     });
 
     return result;

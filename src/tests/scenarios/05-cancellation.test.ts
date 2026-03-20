@@ -80,8 +80,8 @@ describe('Scenario 5: Cancellation', () => {
       },
     });
 
-    nock('https://twitterapi.io')
-      .get('/api/twitter/user/info')
+    nock('https://api.twitterapi.io')
+      .get('/twitter/user/info')
       .query({ userName: 'metavault_team' })
       .reply(200, {
         id: 'user_mv',
@@ -117,8 +117,8 @@ describe('Scenario 5: Cancellation', () => {
     // === Tweet 2 (Tier C — cancellation signal) ===
     mockCancellationYes();
 
-    nock('https://twitterapi.io')
-      .get('/api/twitter/user/info')
+    nock('https://api.twitterapi.io')
+      .get('/twitter/user/info')
       .query({ userName: 'metavault_team' })
       .optionally()
       .reply(200, {
@@ -156,7 +156,7 @@ describe('Scenario 5: Cancellation', () => {
     expect(signals.some(s => s.text.includes('postponing'))).toBe(true);
 
     const callsAfterTweet2 = getAiCallLog();
-    const sonnetCalls = callsAfterTweet2.filter(c => c.model === 'claude-sonnet-4-6');
-    expect(sonnetCalls).toHaveLength(1);
+    const extractorCalls = callsAfterTweet2.filter(c => c.userContent.includes('Extract structured launch data'));
+    expect(extractorCalls).toHaveLength(1);
   });
 });

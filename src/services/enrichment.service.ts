@@ -1,9 +1,26 @@
 import { LaunchStatus, RuleSource } from '@prisma/client';
 import { prisma } from '../db/client.js';
 import { extractLaunchData } from '../ai/extractor.js';
+import { isLikelyPriceRecapNotUpcomingLaunch } from '../ai/launch-signal-guard.js';
 import * as twitterApi from './twitterapi.service.js';
+import { publishEvent } from '../events/publisher.js';
 import { createChildLogger } from '../logger.js';
+import { getPrimarySignalTweetUrlForLaunch } from '../tweet-url.js';
 import type { ExtractionResult } from '../types/index.js';
+
+function withoutRecapLaunchTiming(
+  extraction: ExtractionResult,
+  tweetText: string,
+  ocrText: string,
+): ExtractionResult {
+  const blob = [tweetText, ocrText].filter(Boolean).join('\n');
+  if (!isLikelyPriceRecapNotUpcomingLaunch(blob)) return extraction;
+  return {
+    ...extraction,
+    launchDate: { value: null, confidence: 0 },
+    launchDateRaw: { value: null, confidence: 0 },
+  };
+}
 
 const log = createChildLogger('enrichment');
 
@@ -138,7 +155,12 @@ async function applyExtractionResult(
     hasWebsite: !!website,
   });
 
-  await prisma.launchRecord.update({
+  // Fetch the record before update to detect meaningful changes
+  const before = await prisma.launchRecord.findUniqueOrThrow({
+    where: { id: launchRecordId },
+  });
+
+  const updated = await prisma.launchRecord.update({
     where: { id: launchRecordId },
     data: {
       projectName: projectName ?? undefined,
@@ -155,6 +177,21 @@ async function applyExtractionResult(
     },
   });
 
+  // Only publish when something meaningful changed
+  const meaningful =
+    updated.status !== before.status ||
+    updated.confidenceScore !== before.confidenceScore ||
+    updated.projectName !== before.projectName ||
+    updated.launchDate?.getTime() !== before.launchDate?.getTime() ||
+    updated.chain !== before.chain;
+
+  if (meaningful) {
+    const sourceTweetUrl = await getPrimarySignalTweetUrlForLaunch(launchRecordId);
+    await publishEvent({
+      type: 'launch:updated',
+      payload: { ...updated, sourceTweetUrl },
+    });
+  }
 }
 
 /**
@@ -195,10 +232,10 @@ export async function enrichLaunch(launchRecordId: string): Promise<void> {
   const ocrText = latestTweet?.imageOcrText ?? '';
 
   // Step 3: Run Stage 3 extractor
-  const extraction = await extractLaunchData(
+  const extraction = withoutRecapLaunchTiming(
+    await extractLaunchData(tweetText, profileData.bio, ocrText),
     tweetText,
-    profileData.bio,
-    ocrText
+    ocrText,
   );
 
   // Step 4: Apply results and update state machine

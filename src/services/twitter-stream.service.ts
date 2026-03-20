@@ -187,6 +187,7 @@ export class TwitterStreamClient {
     log.info('Tweet event received', {
       ruleTag: rule_tag,
       tweetCount: tweets.length,
+      tweetTexts: tweets.map(t => t.text),
     });
 
     for (const tweet of tweets) {

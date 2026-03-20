@@ -1,32 +1,26 @@
 import { vi } from 'vitest';
 import type { ExtractionResult } from '../../types/index.js';
 
-/**
- * AI Mock — intercepts the Anthropic SDK at module level.
- *
- * All calls to `client.messages.create()` go through `mockMessagesCreate`,
- * which pulls responses from a FIFO queue. Tests push responses in the order
- * the pipeline will call them (Stage 1 → Stage 2 → Extractor, etc.).
- */
-
 interface QueuedResponse {
-  content: Array<{ type: 'text'; text: string }>;
+  output_text: string;
+  usage?: { input_tokens?: number; output_tokens?: number };
 }
 
 const responseQueue: QueuedResponse[] = [];
 const callLog: Array<{ model: string; system: string; userContent: string }> = [];
 
-const mockMessagesCreate = vi.fn().mockImplementation(
+const mockResponsesCreate = vi.fn().mockImplementation(
   async (params: {
     model: string;
-    max_tokens: number;
-    system: string;
-    messages: Array<{ role: string; content: string }>;
+    max_output_tokens?: number;
+    input: Array<{ role: string; content: string }>;
   }) => {
-    const userContent = params.messages[0]?.content ?? '';
+    const userMsg = params.input?.find(m => m.role === 'user');
+    const systemMsg = params.input?.find(m => m.role === 'system');
+    const userContent = userMsg?.content ?? '';
     callLog.push({
       model: params.model,
-      system: params.system,
+      system: systemMsg?.content ?? '',
       userContent,
     });
 
@@ -37,20 +31,21 @@ const mockMessagesCreate = vi.fn().mockImplementation(
         `Model: ${params.model}, Content starts with: "${userContent.slice(0, 80)}..."`
       );
     }
-    return next;
+    return {
+      output_text: next.output_text,
+      usage: next.usage ?? { input_tokens: 0, output_tokens: 0 },
+    };
   }
 );
 
-vi.mock('@anthropic-ai/sdk', () => {
+vi.mock('openai', () => {
   return {
-    default: class MockAnthropic {
-      messages = { create: mockMessagesCreate };
+    default: class MockOpenAI {
+      responses = { create: mockResponsesCreate };
       constructor(_opts?: Record<string, unknown>) {}
     },
   };
 });
-
-// --- Public API ---
 
 export function getAiCallLog() {
   return callLog;
@@ -63,40 +58,33 @@ export function getAiCallCount(): number {
 export function resetAiMock(): void {
   responseQueue.length = 0;
   callLog.length = 0;
-  mockMessagesCreate.mockClear();
+  mockResponsesCreate.mockClear();
 }
 
-/** Queue a Stage 1 YES response (is a launch announcement). */
 export function mockStage1Yes(): void {
-  responseQueue.push({ content: [{ type: 'text', text: 'YES' }] });
+  responseQueue.push({ output_text: 'YES' });
 }
 
-/** Queue a Stage 1 NO response (not a launch). */
 export function mockStage1No(): void {
-  responseQueue.push({ content: [{ type: 'text', text: 'NO' }] });
+  responseQueue.push({ output_text: 'NO' });
 }
 
-/** Queue a Stage 2 YES response (is crypto). */
 export function mockStage2Yes(): void {
-  responseQueue.push({ content: [{ type: 'text', text: 'YES' }] });
+  responseQueue.push({ output_text: 'YES' });
 }
 
-/** Queue a Stage 2 NO response (not crypto). */
 export function mockStage2No(): void {
-  responseQueue.push({ content: [{ type: 'text', text: 'NO' }] });
+  responseQueue.push({ output_text: 'NO' });
 }
 
-/** Queue a cancellation detector YES response. */
 export function mockCancellationYes(): void {
-  responseQueue.push({ content: [{ type: 'text', text: 'YES' }] });
+  responseQueue.push({ output_text: 'YES' });
 }
 
-/** Queue a cancellation detector NO response. */
 export function mockCancellationNo(): void {
-  responseQueue.push({ content: [{ type: 'text', text: 'NO' }] });
+  responseQueue.push({ output_text: 'NO' });
 }
 
-/** Queue an extractor (Stage 3) response with the given fields. */
 export function mockExtractor(fields: {
   projectName?: string;
   ticker?: string;
@@ -123,14 +111,9 @@ export function mockExtractor(fields: {
     summary: { value: fields.summary ?? null, confidence: conf.summary ?? (fields.summary ? 0.8 : 0) },
   };
 
-  responseQueue.push({
-    content: [{ type: 'text', text: JSON.stringify(result) }],
-  });
+  responseQueue.push({ output_text: JSON.stringify(result) });
 }
 
-/**
- * Assert that the AI call log contains a call matching the given criteria.
- */
 export function assertAiCallMade(criteria: {
   model?: string;
   contentIncludes?: string;
@@ -142,16 +125,10 @@ export function assertAiCallMade(criteria: {
   });
 }
 
-/**
- * Assert that NO AI call was made with the given model.
- */
 export function assertNoAiCallForModel(model: string): boolean {
   return !callLog.some(call => call.model === model);
 }
 
-/**
- * Get remaining queued responses (useful for asserting mocks were consumed).
- */
 export function getRemainingQueuedResponses(): number {
   return responseQueue.length;
 }

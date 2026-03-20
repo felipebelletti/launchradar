@@ -6,6 +6,7 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { config } from './config.js';
 import { registerLaunchRoutes } from './routes/launches.js';
+import { eventsRoutes } from './routes/events.js';
 
 import { TwitterStreamClient } from './services/twitter-stream.service.js';
 import { registerStaticRules } from './services/twitterapi.service.js';
@@ -31,6 +32,7 @@ async function bootstrap(): Promise<void> {
   });
 
   await registerLaunchRoutes(app);
+  await app.register(eventsRoutes);
 
   // Health check endpoint
   app.get('/health', async (_request, reply) => {

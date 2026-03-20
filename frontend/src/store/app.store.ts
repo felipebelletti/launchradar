@@ -1,0 +1,101 @@
+import { create } from 'zustand';
+import type { AppMode, Plan, Timeframe } from '../types';
+
+interface AppStore {
+  filters: {
+    chains: Set<string>;
+    categories: Set<string>;
+    timeframe: Timeframe;
+  };
+  selectedLaunchId: string | null;
+  drawerOpen: boolean;
+  pendingCount: number;
+  pendingIds: string[];
+  mode: AppMode;
+  plan: Plan;
+  connected: boolean;
+  closedPanels: Set<string>;
+
+  toggleChain: (chain: string) => void;
+  toggleCategory: (cat: string) => void;
+  setTimeframe: (t: Timeframe) => void;
+  selectLaunch: (id: string) => void;
+  openDrawer: (id: string) => void;
+  closeDrawer: () => void;
+  addPending: (id: string) => void;
+  flushPending: () => void;
+  setMode: (mode: AppMode) => void;
+  setConnected: (c: boolean) => void;
+  closePanel: (id: string) => void;
+  restorePanel: (id: string) => void;
+  resetPanels: () => void;
+}
+
+export const useAppStore = create<AppStore>((set) => ({
+  filters: {
+    chains: new Set<string>(),
+    categories: new Set<string>(),
+    timeframe: 'all',
+  },
+  selectedLaunchId: null,
+  drawerOpen: false,
+  pendingCount: 0,
+  pendingIds: [],
+  mode: 'terminal',
+  plan: 'alpha',
+  connected: false,
+  closedPanels: new Set<string>(),
+
+  toggleChain: (chain) =>
+    set((s) => {
+      const next = new Set(s.filters.chains);
+      if (next.has(chain)) next.delete(chain);
+      else next.add(chain);
+      return { filters: { ...s.filters, chains: next } };
+    }),
+
+  toggleCategory: (cat) =>
+    set((s) => {
+      const next = new Set(s.filters.categories);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return { filters: { ...s.filters, categories: next } };
+    }),
+
+  setTimeframe: (t) =>
+    set((s) => ({ filters: { ...s.filters, timeframe: t } })),
+
+  selectLaunch: (id) => set({ selectedLaunchId: id }),
+
+  openDrawer: (id) => set({ selectedLaunchId: id, drawerOpen: true }),
+
+  closeDrawer: () => set({ drawerOpen: false }),
+
+  addPending: (id) =>
+    set((s) => ({
+      pendingCount: s.pendingCount + 1,
+      pendingIds: [...s.pendingIds, id],
+    })),
+
+  flushPending: () => set({ pendingCount: 0, pendingIds: [] }),
+
+  setMode: (mode) => set({ mode }),
+
+  setConnected: (connected) => set({ connected }),
+
+  closePanel: (id) =>
+    set((s) => {
+      const next = new Set(s.closedPanels);
+      next.add(id);
+      return { closedPanels: next };
+    }),
+
+  restorePanel: (id) =>
+    set((s) => {
+      const next = new Set(s.closedPanels);
+      next.delete(id);
+      return { closedPanels: next };
+    }),
+
+  resetPanels: () => set({ closedPanels: new Set<string>() }),
+}));

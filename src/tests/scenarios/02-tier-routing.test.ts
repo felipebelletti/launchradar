@@ -46,8 +46,8 @@ describe('Scenario 2: Tier A vs Tier B Routing', () => {
       category: 'DeFi',
     });
 
-    nock('https://twitterapi.io')
-      .get('/api/twitter/user/info')
+    nock('https://api.twitterapi.io')
+      .get('/twitter/user/info')
       .query({ userName: 'defi_project_xyz' })
       .reply(200, {
         id: 'user_xyz',
@@ -68,11 +68,9 @@ describe('Scenario 2: Tier A vs Tier B Routing', () => {
     await waitForQueueDrain([enrichmentQueue], 15000);
 
     const calls = getAiCallLog();
-    const haikuCalls = calls.filter(c => c.model === 'claude-haiku-4-5-20251001');
-    expect(haikuCalls).toHaveLength(0);
-
-    const sonnetCalls = calls.filter(c => c.model === 'claude-sonnet-4-6');
-    expect(sonnetCalls.length).toBeGreaterThanOrEqual(1);
+    expect(calls.filter(c => c.userContent.includes('Does this tweet announce'))).toHaveLength(0);
+    expect(calls.filter(c => c.userContent.includes('Is this tweet related to a cryptocurrency'))).toHaveLength(0);
+    expect(calls.filter(c => c.userContent.includes('Extract structured launch data')).length).toBeGreaterThanOrEqual(1);
 
     const record = await findLaunchByHandle('defi_project_xyz');
     expect(record).toBeTruthy();
@@ -87,8 +85,8 @@ describe('Scenario 2: Tier A vs Tier B Routing', () => {
       chain: 'Ethereum',
     });
 
-    nock('https://twitterapi.io')
-      .get('/api/twitter/user/info')
+    nock('https://api.twitterapi.io')
+      .get('/twitter/user/info')
       .query({ userName: 'crypto_launcher_b' })
       .reply(200, {
         id: 'user_b',
@@ -108,8 +106,8 @@ describe('Scenario 2: Tier A vs Tier B Routing', () => {
     await waitForQueueDrain([enrichmentQueue], 15000);
 
     const calls = getAiCallLog();
-    const haikuCalls = calls.filter(c => c.model === 'claude-haiku-4-5-20251001');
-    expect(haikuCalls.length).toBeGreaterThanOrEqual(2);
+    expect(calls.filter(c => c.userContent.includes('Does this tweet primarily announce')).length).toBeGreaterThanOrEqual(1);
+    expect(calls.filter(c => c.userContent.includes('Is this tweet related to a cryptocurrency')).length).toBeGreaterThanOrEqual(1);
 
     const record = await findLaunchByHandle('crypto_launcher_b');
     expect(record).toBeTruthy();

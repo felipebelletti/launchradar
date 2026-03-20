@@ -3,10 +3,13 @@ import { prisma } from '../db/client.js';
 import { redis } from '../redis.js';
 import { ocrTweetImages } from '../ocr/image-ocr.js';
 import { isLaunchAnnouncement, isCryptoRelated } from '../ai/classifier.js';
+import { isLikelyPriceRecapNotUpcomingLaunch } from '../ai/launch-signal-guard.js';
 import { findExistingRecord } from './dedup.service.js';
 import { enrichmentQueue } from '../queues/enrichment.queue.js';
 import { registerAccountPolling } from '../queues/account-poll.queue.js';
+import { publishEvent } from '../events/publisher.js';
 import { createChildLogger } from '../logger.js';
+import { tweetStatusUrl } from '../tweet-url.js';
 import type { TweetData } from '../types/index.js';
 
 const log = createChildLogger('ingest');
@@ -79,6 +82,18 @@ export async function ingestTweet(
     }
   }
 
+  const textForRecapGuard = [tweet.text, ocrText].filter(Boolean).join('\n');
+  if (isLikelyPriceRecapNotUpcomingLaunch(textForRecapGuard)) {
+    log.info('Tweet discarded: price recap / past launch heuristics', {
+      tweetId: tweet.id,
+      authorHandle: tweet.authorHandle,
+      tier,
+    });
+    await redis.sadd(DISCARD_KEY, tweet.id);
+    await redis.expire(DISCARD_KEY, 60 * 60 * 24 * 3);
+    return;
+  }
+
   // Step 2: AI filters (Tier B only)
   if (tier === RuleSource.TIER_B) {
     const isLaunch = await isLaunchAnnouncement(tweet.text, ocrText);
@@ -109,14 +124,34 @@ export async function ingestTweet(
       return;
     }
 
-    log.info('Tweet approved by classifier', {
+    log.info('Tweet classified as crypto launch', {
       tweetId: tweet.id,
       authorHandle: tweet.authorHandle,
       tweetText: tweet.text,
+      stage1: 'pass',
+      stage2: 'pass',
+      tier: 'TIER_B',
+    });
+  } else if (tier === RuleSource.TIER_A) {
+    log.info('Tweet classified as crypto launch', {
+      tweetId: tweet.id,
+      authorHandle: tweet.authorHandle,
+      tweetText: tweet.text,
+      stage1: 'skip (chain-qualified)',
+      stage2: 'skip (chain-qualified)',
+      tier: 'TIER_A',
+      chain: inferChainFromLabel(ruleLabel),
+    });
+  } else {
+    log.info('Tweet classified as crypto launch', {
+      tweetId: tweet.id,
+      authorHandle: tweet.authorHandle,
+      tweetText: tweet.text,
+      stage1: 'skip (monitored account)',
+      stage2: 'skip (monitored account)',
+      tier: 'TIER_C',
     });
   }
-  // Tier A: skip filters — chain already confirmed
-  // Tier C: skip filters — account already confirmed crypto
 
   // Step 3: Dedup check — find existing LaunchRecord
   const existingRecord = await findExistingRecord(
@@ -209,6 +244,14 @@ export async function ingestTweet(
       launchRecordId,
       authorHandle: tweet.authorHandle,
       tier,
+    });
+
+    await publishEvent({
+      type: 'launch:new',
+      payload: {
+        ...launchRecord,
+        sourceTweetUrl: tweetStatusUrl(tweet.authorHandle, tweet.id),
+      },
     });
   }
 

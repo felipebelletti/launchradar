@@ -1,12 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { config } from '../config.js';
+import { xaiClient, GROK_MODEL } from './client.js';
 import { createChildLogger } from '../logger.js';
 import type { ExtractionResult } from '../types/index.js';
 
-const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 const log = createChildLogger('ai:extractor');
-
-const EXTRACTOR_MODEL = 'claude-sonnet-4-6';
 
 const SYSTEM_PROMPT = `You are a structured data extraction engine for a crypto launch monitoring platform.
 Given raw content about a potential crypto project launch, extract all available structured fields.
@@ -21,18 +17,21 @@ const USER_PROMPT_TEMPLATE = `Extract structured launch data from the following 
   "launchDateRaw": { "value": string | null, "confidence": number },
   "launchType": { "value": "presale" | "airdrop" | "mainnet" | "mint" | "testnet" | "tge" | null, "confidence": number },
   "chain": { "value": string | null, "confidence": number },
-  "category": { "value": "DeFi" | "NFT" | "L2" | "GameFi" | "Meme" | "Infrastructure" | "Other" | null, "confidence": number },
+  "category": { "value": "DeFi" | "NFT" | "L2" | "GameFi" | "Meme" | "Launchpad" | "Infrastructure" | "Other" | null, "confidence": number },
   "website": { "value": string | null, "confidence": number },
   "summary": { "value": string | null, "confidence": number }
 }
 
 Rules:
 - confidence is a float from 0 to 1 (1 = certain, 0 = guessing)
+- launchDate and launchDateRaw are ONLY for a scheduled, teased, or upcoming go-live (future mint/listing/TGE/presale window you can honestly put on a calendar).
+- If the text describes something ALREADY live, already listed, or past price action (e.g. "surged X%", "within 24 hours after launching", "gains", "JUST IN" price headlines), set launchDate and launchDateRaw to null with confidence 0. Do not treat performance time windows as launch dates.
 - launchDate value should be an ISO 8601 date string if parseable, otherwise null
-- launchDateRaw is the raw date text from the content (e.g. "end of March", "Q2 2025")
+- launchDateRaw is the raw date text from the content (e.g. "end of March", "Q2 2025") — not phrases like "within 24 hours" when they refer to how long ago a pump happened
 - ticker should be uppercase, without the $ prefix
 - If a field cannot be determined, set value to null and confidence to 0
 - For summary, write a 1-2 sentence description of the project and its launch
+- Use category "Launchpad" when the project is a launch venue, IDO/ICO platform, token launch host, or pump-style launch surface (the product is helping others launch tokens), not for a typical protocol that merely has a scheduled token launch
 
 Content to analyze:
 ---
@@ -64,7 +63,6 @@ function buildPrompt(
 }
 
 function parseExtractionResponse(raw: string): ExtractionResult {
-  // Strip markdown code fences if present
   const cleaned = raw.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
 
   const parsed: unknown = JSON.parse(cleaned);
@@ -100,10 +98,6 @@ function parseExtractionResponse(raw: string): ExtractionResult {
   };
 }
 
-/**
- * Stage 3: Structured data extraction.
- * Uses claude-sonnet-4-6 — only call this AFTER tweets pass Stage 1 + Stage 2 (or are Tier A/C).
- */
 export async function extractLaunchData(
   tweetText: string,
   authorBio: string,
@@ -113,37 +107,39 @@ export async function extractLaunchData(
   const prompt = buildPrompt(tweetText, authorBio, ocrText, websiteContent);
 
   const start = Date.now();
-  log.info('Anthropic API call', {
+  log.info('xAI API call', {
     call: 'stage3_extraction',
-    model: EXTRACTOR_MODEL,
+    model: GROK_MODEL,
     tweetPreview: tweetText.slice(0, 80),
   });
 
   try {
-    const response = await client.messages.create({
-      model: EXTRACTOR_MODEL,
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: prompt }],
+    const response = await xaiClient.responses.create({
+      model: GROK_MODEL,
+      max_output_tokens: 1024,
+      input: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: prompt },
+      ],
+      store: false,
     });
 
-    const rawText =
-      response.content[0].type === 'text' ? response.content[0].text : '{}';
+    const rawText = response.output_text ?? '{}';
     const result = parseExtractionResponse(rawText);
 
-    log.info('Anthropic API response', {
+    const usage = response.usage as { input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number } | undefined;
+    log.info('xAI API response', {
       call: 'stage3_extraction',
-      model: EXTRACTOR_MODEL,
+      model: GROK_MODEL,
       durationMs: Date.now() - start,
-      inputTokens: response.usage?.input_tokens,
-      outputTokens: response.usage?.output_tokens,
+      inputTokens: usage?.input_tokens ?? usage?.prompt_tokens,
+      outputTokens: usage?.output_tokens ?? usage?.completion_tokens,
       projectName: result.projectName.value,
     });
 
     return result;
   } catch (err) {
     log.error('Stage 3 extractor error', { err, durationMs: Date.now() - start });
-    // Return empty extraction on failure
     const emptyField = { value: null, confidence: 0 };
     return {
       projectName: emptyField,

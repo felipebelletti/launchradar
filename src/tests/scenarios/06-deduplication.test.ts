@@ -40,8 +40,8 @@ describe('Scenario 6: Deduplication', () => {
   });
 
   function mockProfileForHandle(handle: string): void {
-    nock('https://twitterapi.io')
-      .get('/api/twitter/user/info')
+    nock('https://api.twitterapi.io')
+      .get('/twitter/user/info')
       .query({ userName: handle })
       .reply(200, {
         id: `user_${handle}`,

@@ -52,18 +52,20 @@ describe('Scenario 1: Happy Path', () => {
       summary: 'AquaFi is a DeFi protocol launching on Solana',
     });
 
-    const profileScope = nock('https://twitterapi.io')
-      .get('/api/twitter/user/info')
+    const profileScope = nock('https://api.twitterapi.io')
+      .get('/twitter/user/info')
       .query({ userName: 'aquafi_official' })
       .reply(200, {
-        id: 'user_001',
-        userName: 'aquafi_official',
-        name: 'AquaFi',
-        description: 'DeFi protocol | Powered by Solana',
-        website: 'https://aquafi.io',
-        publicMetrics: { followersCount: 4200, followingCount: 100, tweetCount: 500 },
-        isVerified: false,
-        isBlueVerified: false,
+        data: {
+          id: 'user_001',
+          userName: 'aquafi_official',
+          name: 'AquaFi',
+          description: 'DeFi protocol | Powered by Solana',
+          url: 'https://aquafi.io',
+          followers: 4200,
+          following: 100,
+          isBlueVerified: false,
+        },
       });
 
     const { tweetData, ruleLabel } = makeTierBPayload({
