@@ -2,6 +2,7 @@ import fetch from 'node-fetch';
 import { config } from '../config.js';
 import { redis } from '../redis.js';
 import { createChildLogger } from '../logger.js';
+import { pickBestProfileWebsiteResolved } from '../util/launch-website.js';
 import type {
   TwitterApiRule,
   TwitterApiRuleListResponse,
@@ -272,10 +273,8 @@ export async function getUserInfo(userName: string): Promise<UserInfoResponse | 
     const u = raw.data;
     if (!u) return null;
 
-    let website: string | undefined = u.url;
-    if (!website && u.profile_bio?.description?.urls?.length) {
-      website = u.profile_bio.description.urls[0]?.expanded_url;
-    }
+    const bioUrls = u.profile_bio?.description?.urls?.map((l) => l.expanded_url);
+    const website = await pickBestProfileWebsiteResolved(u.url, bioUrls);
 
     return {
       id: u.id,

@@ -30,6 +30,7 @@ Rules:
 - launchDateRaw is the raw date text from the content (e.g. "end of March", "Q2 2025") — not phrases like "within 24 hours" when they refer to how long ago a pump happened
 - ticker should be uppercase, without the $ prefix
 - If a field cannot be determined, set value to null and confidence to 0
+- website should be a real project domain (e.g. example.com). Never x.com or twitter.com as the project site. If the only link is t.co/..., output that URL (it is resolved server-side). If there is no usable link, use null
 - For summary, write a 1-2 sentence description of the project and its launch
 - Use category "Launchpad" when the project is a launch venue, IDO/ICO platform, token launch host, or pump-style launch surface (the product is helping others launch tokens), not for a typical protocol that merely has a scheduled token launch
 

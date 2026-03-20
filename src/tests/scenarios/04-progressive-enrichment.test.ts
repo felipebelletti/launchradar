@@ -135,7 +135,7 @@ describe('Scenario 4: Progressive Enrichment', () => {
 
     expect(record.launchDate).toBeTruthy();
 
-    expect(record.website).toBe('solrise.finance');
+    expect(record.website).toBe('https://solrise.finance');
 
     signals = await getTweetSignals(record.id);
     expect(signals).toHaveLength(2);

@@ -6,6 +6,7 @@ import * as twitterApi from './twitterapi.service.js';
 import { publishEvent } from '../events/publisher.js';
 import { createChildLogger } from '../logger.js';
 import { getPrimarySignalTweetUrlForLaunch } from '../tweet-url.js';
+import { expandLaunchWebsite } from '../util/launch-website.js';
 import type { ExtractionResult } from '../types/index.js';
 
 function withoutRecapLaunchTiming(
@@ -79,7 +80,7 @@ async function enrichWithProfile(
 
   const followers = profile.publicMetrics?.followersCount ?? 0;
   const isVerified = profile.isVerified === true || profile.isBlueVerified === true;
-  const website = profile.website ?? undefined;
+  const website = await expandLaunchWebsite(profile.website);
   const bio = profile.description ?? '';
 
   // Store profile as a source
@@ -98,7 +99,7 @@ async function enrichWithProfile(
     data: {
       twitterFollowers: followers,
       isVerifiedAccount: isVerified,
-      website: website ?? undefined,
+      website,
     },
   });
 
@@ -117,7 +118,10 @@ async function applyExtractionResult(
   const projectName = extraction.projectName.value;
   const ticker = extraction.ticker.value;
   const chain = extraction.chain.value;
-  const website = extraction.website.value ?? profileData.website ?? null;
+  const website =
+    (await expandLaunchWebsite(extraction.website.value)) ??
+    (await expandLaunchWebsite(profileData.website)) ??
+    null;
   const launchType = extraction.launchType.value;
   const category = extraction.category.value;
   const launchDateRaw = extraction.launchDateRaw.value;
@@ -250,7 +254,9 @@ export async function enrichLaunch(
         category: extraction.category.value,
         launchType: extraction.launchType.value,
         ticker: extraction.ticker.value,
-        website: extraction.website.value ?? profileData.website,
+        website:
+          (await expandLaunchWebsite(extraction.website.value)) ??
+          (await expandLaunchWebsite(profileData.website)),
       };
       for (const [key, val] of Object.entries(candidates)) {
         if (val) extractedData[key] = val;

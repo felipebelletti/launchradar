@@ -95,7 +95,7 @@ describe('Scenario 1: Happy Path', () => {
 
     expect(enrichedRecord.chain).toBe('Solana');
     expect(enrichedRecord.projectName).toBe('AquaFi');
-    expect(enrichedRecord.website).toBe('aquafi.io');
+    expect(enrichedRecord.website).toBe('https://aquafi.io');
     expect(enrichedRecord.twitterFollowers).toBe(4200);
     expect(enrichedRecord.confidenceScore).toBeGreaterThanOrEqual(0.7);
     expect(['CONFIRMED', 'VERIFIED', 'PARTIAL']).toContain(enrichedRecord.status);
