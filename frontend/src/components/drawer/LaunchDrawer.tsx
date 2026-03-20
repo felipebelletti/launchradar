@@ -10,12 +10,14 @@ import { ConfidenceBar } from '../shared/ConfidenceBar';
 import { resolveSignalTweetUrl } from '../../tweet-status-url';
 import { DrawerTimeline } from './DrawerTimeline';
 import { DrawerTweets } from './DrawerTweets';
+import { CancelledLaunchBanner } from '../shared/CancelledLaunchBanner';
 
 export function LaunchDrawer() {
   const open = useAppStore((s) => s.drawerOpen);
   const id = useAppStore((s) => s.selectedLaunchId);
   const close = useAppStore((s) => s.closeDrawer);
   const { data: launch } = useLaunch(id);
+  const isCancelled = launch?.status === 'CANCELLED';
   const signalTweetUrl =
     launch != null
       ? resolveSignalTweetUrl(launch.sourceTweetUrl, launch.tweets)
@@ -45,13 +47,19 @@ export function LaunchDrawer() {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed right-0 top-0 bottom-0 w-[480px] max-w-full z-50
-                       bg-radar-bg border-l border-radar-border overflow-y-auto"
+            className={`fixed right-0 top-0 bottom-0 w-[480px] max-w-full z-50 overflow-y-auto border-l ${
+              isCancelled
+                ? 'border-rose-500/35 bg-[#0c0809] bg-linear-to-b from-rose-950/25 via-radar-bg to-radar-bg'
+                : 'border-radar-border bg-radar-bg'
+            }`}
           >
-            {/* Header */}
             <div className="p-6 border-b border-radar-border">
               <div className="flex items-start justify-between mb-3">
-                <h2 className="font-display text-4xl leading-none text-radar-text">
+                <h2
+                  className={`font-display text-4xl leading-none ${
+                    isCancelled ? 'text-radar-text/85' : 'text-radar-text'
+                  }`}
+                >
                   {launch.projectName}
                 </h2>
                 <button onClick={close} className="p-1 text-radar-muted hover:text-radar-text transition-colors">
@@ -61,8 +69,13 @@ export function LaunchDrawer() {
               <StatusBadge status={launch.status} />
             </div>
 
-            {/* Signal strength */}
-            <div className="px-6 py-4 border-b border-radar-border">
+            {isCancelled && <CancelledLaunchBanner />}
+
+            <div
+              className={`px-6 py-4 border-b border-radar-border ${
+                isCancelled ? 'opacity-[0.72]' : ''
+              }`}
+            >
               <ConfidenceBar launch={launch} showLabels />
             </div>
 
@@ -74,9 +87,18 @@ export function LaunchDrawer() {
               <MetaField
                 label="LAUNCH DATE"
                 value={
-                  launch.launchDate
-                    ? new Date(launch.launchDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                    : launch.launchDateRaw ?? 'TBD'
+                  <div className="flex flex-col gap-0.5">
+                    <span>
+                      {launch.launchDate
+                        ? new Date(launch.launchDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+                        : launch.launchDateRaw ?? 'TBD'}
+                    </span>
+                    {launch.rescheduledAt && launch.previousLaunchDate && (
+                      <span className="text-[10px] font-mono text-amber-400">
+                        was {new Date(launch.previousLaunchDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
                 }
               />
               <MetaField

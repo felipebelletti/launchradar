@@ -13,6 +13,7 @@ import { publishEvent } from '../events/publisher.js';
 import { createChildLogger } from '../logger.js';
 import { tweetLogFields, tweetStatusUrl } from '../tweet-url.js';
 import type { TweetData } from '../types/index.js';
+import { initialTimeBadgeFromLaunchTiming, launchTimingToIngestTiming } from '../util/tweet-time-badge.js';
 
 const log = createChildLogger('ingest');
 
@@ -184,6 +185,10 @@ export async function ingestTweet(
   const timing: LaunchTiming = await classifyLaunchTiming(tweet.text, ocrText);
   log.debug('Launch timing classified', { ...tweetLogFields(tweet.id, tweet.authorHandle), timing });
 
+  const ingestTiming = launchTimingToIngestTiming(timing);
+  const { timeBadge: initialTimeBadge, timeBadgeDetail: initialTimeBadgeDetail } =
+    initialTimeBadgeFromLaunchTiming(timing);
+
   // Step 2c: Content-hash dedup — same tweet text = same signal, regardless of author
   const contentHash = crypto
     .createHash('sha256')
@@ -194,27 +199,41 @@ export async function ingestTweet(
   const existingRecordIdByHash = await redis.get(hashKey);
 
   if (existingRecordIdByHash) {
-    log.debug('Duplicate tweet content, merging signal', {
-      ...tweetLogFields(tweet.id, tweet.authorHandle),
-      existingRecordId: existingRecordIdByHash,
+    // Verify the referenced record still exists (it may have been deleted/merged)
+    const hashTarget = await prisma.launchRecord.findUnique({
+      where: { id: existingRecordIdByHash },
+      select: { id: true },
     });
 
-    await prisma.tweetSignal.create({
-      data: {
-        tweetId: tweet.id,
-        text: tweet.text,
-        authorHandle: tweet.authorHandle,
-        authorId: tweet.authorId,
-        likes: tweet.likes,
-        retweets: tweet.retweets,
-        createdAt: tweet.createdAt,
-        launchRecordId: existingRecordIdByHash,
-        imageUrls: tweet.imageUrls,
-        imageOcrText: ocrText || null,
-      },
-    });
+    if (hashTarget) {
+      log.debug('Duplicate tweet content, merging signal', {
+        ...tweetLogFields(tweet.id, tweet.authorHandle),
+        existingRecordId: existingRecordIdByHash,
+      });
 
-    return;
+      await prisma.tweetSignal.create({
+        data: {
+          tweetId: tweet.id,
+          text: tweet.text,
+          authorHandle: tweet.authorHandle,
+          authorId: tweet.authorId,
+          likes: tweet.likes,
+          retweets: tweet.retweets,
+          createdAt: tweet.createdAt,
+          launchRecordId: existingRecordIdByHash,
+          imageUrls: tweet.imageUrls,
+          imageOcrText: ocrText || null,
+          ingestTiming,
+          timeBadge: initialTimeBadge,
+          timeBadgeDetail: initialTimeBadgeDetail,
+        },
+      });
+
+      return;
+    }
+
+    // Record gone — clear stale hash and continue with normal flow
+    await redis.del(hashKey);
   }
 
   // Step 3: Dedup check — find existing LaunchRecord
@@ -244,6 +263,9 @@ export async function ingestTweet(
         retweets: tweet.retweets,
         createdAt: tweet.createdAt,
         launchRecordId: existingRecord.id,
+        ingestTiming,
+        timeBadge: initialTimeBadge,
+        timeBadgeDetail: initialTimeBadgeDetail,
       },
     });
 
@@ -295,6 +317,9 @@ export async function ingestTweet(
             likes: tweet.likes,
             retweets: tweet.retweets,
             createdAt: tweet.createdAt,
+            ingestTiming,
+            timeBadge: initialTimeBadge,
+            timeBadgeDetail: initialTimeBadgeDetail,
           },
         },
         sources: {
@@ -327,12 +352,13 @@ export async function ingestTweet(
     });
   }
 
-  // Step 6: Queue enrichment job (deduplicated by launchRecordId)
+  // Step 6: Queue enrichment job
+  // Use launchRecordId + tweetId to allow re-enrichment when new tweets arrive
   await enrichmentQueue.add(
     'enrich-launch',
-    { launchRecordId, twitterHandle: tweet.authorHandle, timing },
+    { launchRecordId, twitterHandle: tweet.authorHandle, timing, triggerTweetId: tweet.id },
     {
-      jobId: launchRecordId,
+      jobId: `${launchRecordId}_${tweet.id}`,
       attempts: 3,
       backoff: { type: 'exponential', delay: 5000 },
     }

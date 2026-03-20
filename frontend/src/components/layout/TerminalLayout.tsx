@@ -9,8 +9,8 @@ import { LiveFeedPanel } from '../panels/LiveFeedPanel';
 import { ChainFilterPanel } from '../panels/ChainFilterPanel';
 import { CategoryFilterPanel } from '../panels/CategoryFilterPanel';
 import { HeatmapPanel } from '../panels/HeatmapPanel';
-import { SourceTweetsPanel } from '../panels/SourceTweetsPanel';
 import { WatchlistPanel } from '../panels/WatchlistPanel';
+import { CancelledPanel } from '../panels/CancelledPanel';
 
 const ROW_HEIGHT = 80;
 
@@ -19,9 +19,9 @@ const DEFAULT_LAYOUT: Layout[] = [
   { i: 'live-feed', x: 8,  y: 0, w: 4, h: 6, minW: 2, minH: 3 },
   { i: 'chain',     x: 0,  y: 6, w: 2, h: 3, minW: 2, minH: 2 },
   { i: 'category',  x: 2,  y: 6, w: 2, h: 3, minW: 2, minH: 2 },
-  { i: 'heatmap',   x: 4,  y: 6, w: 4, h: 3, minW: 3, minH: 2 },
-  { i: 'tweets',    x: 8,  y: 6, w: 4, h: 4, minW: 2, minH: 3 },
+  { i: 'heatmap',   x: 4,  y: 6, w: 8, h: 3, minW: 4, minH: 2 },
   { i: 'watchlist', x: 0,  y: 9, w: 4, h: 4, minW: 2, minH: 3 },
+  { i: 'cancelled', x: 4,  y: 9, w: 4, h: 4, minW: 2, minH: 3 },
 ];
 
 function loadLayout(): Layout[] {
@@ -38,8 +38,8 @@ const PANELS: Record<string, (onClose: () => void) => React.ReactNode> = {
   'chain':     (onClose) => <ChainFilterPanel onClose={onClose} />,
   'category':  (onClose) => <CategoryFilterPanel onClose={onClose} />,
   'heatmap':   (onClose) => <HeatmapPanel onClose={onClose} />,
-  'tweets':    (onClose) => <SourceTweetsPanel onClose={onClose} />,
   'watchlist': (onClose) => <WatchlistPanel onClose={onClose} />,
+  'cancelled': (onClose) => <CancelledPanel onClose={onClose} />,
 };
 
 export function TerminalLayout() {

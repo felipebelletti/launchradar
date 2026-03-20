@@ -45,6 +45,7 @@ export interface EnrichmentJobData {
   launchRecordId: string;
   twitterHandle: string;
   timing?: 'future' | 'live' | 'unknown';
+  triggerTweetId?: string;
 }
 
 export type RuleTier = 'TIER_A' | 'TIER_B' | 'TIER_C';

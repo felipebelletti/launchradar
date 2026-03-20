@@ -5,6 +5,7 @@ import { Worker } from 'bullmq';
 import { getTesseractMock, mockOcrResult, mockOcrFailure } from '../helpers/ocr-mock.js';
 import {
   mockStage1Yes,
+  mockShillNo,
   mockStage2Yes,
   mockTimingFuture,
   mockExtractor,
@@ -45,6 +46,7 @@ describe('Scenario 3: OCR Provides the Crypto Signal', () => {
     mockOcrResult(ocrContent);
 
     mockStage1Yes();
+    mockShillNo();
     mockStage2Yes();
     mockTimingFuture();
     mockExtractor({
@@ -109,6 +111,7 @@ describe('Scenario 3: OCR Provides the Crypto Signal', () => {
     mockOcrFailure(new Error('Tesseract timeout'));
 
     mockStage1Yes();
+    mockShillNo();
     mockStage2Yes();
     mockTimingFuture();
     mockExtractor({

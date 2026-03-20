@@ -89,12 +89,32 @@ export function mockTimingUnknown(): void {
   responseQueue.push({ output_text: 'unknown' });
 }
 
-export function mockCancellationYes(): void {
+export function mockShillNo(): void {
+  responseQueue.push({ output_text: 'NO' });
+}
+
+export function mockShillYes(): void {
   responseQueue.push({ output_text: 'YES' });
 }
 
+export function mockCancellationYes(): void {
+  responseQueue.push({ output_text: 'cancelled' });
+}
+
 export function mockCancellationNo(): void {
-  responseQueue.push({ output_text: 'NO' });
+  responseQueue.push({ output_text: 'none' });
+}
+
+export function mockDisruptionPostponed(): void {
+  responseQueue.push({ output_text: 'postponed' });
+}
+
+export function mockDisruptionCancelled(): void {
+  responseQueue.push({ output_text: 'cancelled' });
+}
+
+export function mockDisruptionNone(): void {
+  responseQueue.push({ output_text: 'none' });
 }
 
 export function mockExtractor(fields: {

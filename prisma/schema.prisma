@@ -14,6 +14,8 @@ model LaunchRecord {
   launchDate           DateTime?
   launchDateRaw        String?
   launchDateConfidence Float?
+  previousLaunchDate   DateTime?
+  rescheduledAt        DateTime?
   launchType           String?
   chain                String?
   category             String?
@@ -33,19 +35,41 @@ model LaunchRecord {
 }
 
 model TweetSignal {
-  id             String        @id @default(cuid())
-  tweetId        String        @unique
-  text           String
-  imageUrls      String[]      @default([])
-  imageOcrText   String?
-  authorHandle   String
-  authorId       String
-  likes          Int           @default(0)
-  retweets       Int           @default(0)
-  createdAt      DateTime
-  ingestedAt     DateTime      @default(now())
-  launchRecordId String?
-  launchRecord   LaunchRecord? @relation(fields: [launchRecordId], references: [id])
+  id              String         @id @default(cuid())
+  tweetId         String         @unique
+  text            String
+  imageUrls       String[]       @default([])
+  imageOcrText    String?
+  authorHandle    String
+  authorId        String
+  likes           Int            @default(0)
+  retweets        Int            @default(0)
+  createdAt       DateTime
+  ingestedAt      DateTime       @default(now())
+  launchRecordId  String?
+  launchRecord    LaunchRecord?  @relation(fields: [launchRecordId], references: [id])
+  ingestTiming    IngestTiming?
+  timeBadge       TweetTimeBadge?
+  timeBadgeDetail Int?
+}
+
+enum IngestTiming {
+  FUTURE
+  LIVE
+  UNKNOWN
+}
+
+enum TweetTimeBadge {
+  LIVE_NOW
+  NEXT_HOUR
+  TODAY
+  THIS_WEEK
+  LATER
+  IN_N_DAYS
+  UPCOMING
+  TIME_UNKNOWN
+  RESCHEDULED
+  NO_DATE
 }
 
 model LaunchSource {

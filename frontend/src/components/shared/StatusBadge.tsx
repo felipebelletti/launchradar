@@ -7,7 +7,7 @@ const STATUS_CONFIG: Record<LaunchStatus, { label: string; icon: string; color: 
   VERIFIED:  { label: 'VERIFIED',  icon: '\u2726', color: '#00D4FF', glowClass: 'glow-cyan' },
   LIVE:      { label: 'LIVE',      icon: '\u25CF', color: '#00D4FF', glowClass: 'glow-cyan' },
   STALE:     { label: 'STALE',     icon: '\u25CB', color: '#6B7280', glowClass: '' },
-  CANCELLED: { label: 'CANCELLED', icon: '\u2715', color: '#6B7280', glowClass: '' },
+  CANCELLED: { label: 'CANCELLED', icon: '\u2715', color: '#FB7185', glowClass: '' },
 };
 
 export function StatusBadge({ status }: { status: LaunchStatus }) {

@@ -1,5 +1,10 @@
 import type { TweetSignal } from './types';
 
+export function twitterProfileUrl(handle: string): string {
+  const h = handle.replace(/^@/, '').trim();
+  return `https://x.com/${h}`;
+}
+
 export function tweetStatusUrl(authorHandle: string, tweetId: string): string {
   const h = authorHandle.replace(/^@/, '').trim();
   return `https://x.com/${h}/status/${tweetId}`;

@@ -8,6 +8,7 @@ import { publishEvent } from '../events/publisher.js';
 import { createChildLogger } from '../logger.js';
 import { getPrimarySignalTweetUrlForLaunch } from '../tweet-url.js';
 import { expandLaunchWebsite } from '../util/launch-website.js';
+import { timeBadgeFromLaunchDate } from '../util/tweet-time-badge.js';
 import type { ExtractionResult } from '../types/index.js';
 
 function withoutRecapLaunchTiming(
@@ -114,8 +115,9 @@ async function applyExtractionResult(
   launchRecordId: string,
   extraction: ExtractionResult,
   profileData: { followers: number; isVerified: boolean; website?: string },
-  isTierA: boolean
-): Promise<void> {
+  isTierA: boolean,
+  triggerTweetId?: string
+): Promise<{ rescheduled: boolean }> {
   const projectName = extraction.projectName.value;
   const ticker = extraction.ticker.value;
   const chain = extraction.chain.value;
@@ -165,6 +167,30 @@ async function applyExtractionResult(
     where: { id: launchRecordId },
   });
 
+  // Detect reschedule: new date differs from existing date by more than 30 minutes.
+  // This filters out "countdown reannouncements" where e.g. "launching in 1h" at 13:00
+  // is followed by "launching in 30m" at 13:30 — both resolve to ~14:00.
+  const RESCHEDULE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+  let rescheduleData: { previousLaunchDate: Date; rescheduledAt: Date } | undefined;
+
+  if (
+    launchDate &&
+    before.launchDate &&
+    launchDateConfidence >= 0.6 &&
+    Math.abs(launchDate.getTime() - before.launchDate.getTime()) > RESCHEDULE_THRESHOLD_MS
+  ) {
+    rescheduleData = {
+      previousLaunchDate: before.launchDate,
+      rescheduledAt: new Date(),
+    };
+    log.info('Launch date rescheduled', {
+      launchRecordId,
+      previousDate: before.launchDate.toISOString(),
+      newDate: launchDate.toISOString(),
+      diffMinutes: Math.round(Math.abs(launchDate.getTime() - before.launchDate.getTime()) / 60000),
+    });
+  }
+
   const updated = await prisma.launchRecord.update({
     where: { id: launchRecordId },
     data: {
@@ -179,8 +205,16 @@ async function applyExtractionResult(
       launchDateConfidence: launchDateConfidence > 0 ? launchDateConfidence : undefined,
       confidenceScore,
       status: newStatus,
+      ...rescheduleData,
     },
   });
+
+  if (rescheduleData && triggerTweetId) {
+    await prisma.tweetSignal.updateMany({
+      where: { tweetId: triggerTweetId },
+      data: { timeBadge: 'RESCHEDULED', timeBadgeDetail: null },
+    });
+  }
 
   // Only publish when something meaningful changed
   const meaningful =
@@ -198,6 +232,8 @@ async function applyExtractionResult(
       payload: { ...updated, sourceTweetUrl },
     });
   }
+
+  return { rescheduled: !!rescheduleData };
 }
 
 /**
@@ -205,12 +241,13 @@ async function applyExtractionResult(
  */
 export async function enrichLaunch(
   launchRecordId: string,
-  timing?: 'future' | 'live' | 'unknown'
+  timing?: 'future' | 'live' | 'unknown',
+  triggerTweetId?: string
 ): Promise<void> {
   const record = await prisma.launchRecord.findUnique({
     where: { id: launchRecordId },
     include: {
-      tweets: { orderBy: { createdAt: 'desc' }, take: 5 },
+      tweets: { orderBy: { createdAt: 'desc' }, take: 25 },
     },
   });
 
@@ -232,16 +269,27 @@ export async function enrichLaunch(
     return;
   }
 
+  const resolvedTweet = triggerTweetId
+    ? record.tweets.find((t) => t.tweetId === triggerTweetId) ??
+      (await prisma.tweetSignal.findUnique({ where: { tweetId: triggerTweetId } }))
+    : record.tweets[0];
+
   // Step 1: Pull author profile
   const profileData = await enrichWithProfile(launchRecordId, record.twitterHandle);
 
   // Step 2: Aggregate tweet text and OCR text for extraction
-  const latestTweet = record.tweets[0];
-  const tweetText = latestTweet?.text ?? '';
-  const ocrText = latestTweet?.imageOcrText ?? '';
+  const tweetText = resolvedTweet?.text ?? '';
+  const ocrText = resolvedTweet?.imageOcrText ?? '';
 
   // Step 2b: Handle LIVE timing — set status to LIVE, still extract fields if missing
   if (timing === 'live') {
+    if (triggerTweetId) {
+      await prisma.tweetSignal.updateMany({
+        where: { tweetId: triggerTweetId },
+        data: { timeBadge: 'LIVE_NOW', timeBadgeDetail: null },
+      });
+    }
+
     const needsExtraction = !record.projectName || record.projectName === record.twitterHandle
       || !record.chain || !record.category;
 
@@ -333,7 +381,12 @@ export async function enrichLaunch(
     const { enrichmentQueue } = await import('../queues/enrichment.queue.js');
     await enrichmentQueue.add(
       'enrich-launch',
-      { launchRecordId: duplicateOf.id, twitterHandle: duplicateOf.twitterHandle ?? record.twitterHandle!, timing },
+      {
+        launchRecordId: duplicateOf.id,
+        twitterHandle: duplicateOf.twitterHandle ?? record.twitterHandle!,
+        timing,
+        triggerTweetId,
+      },
       { jobId: duplicateOf.id },
     );
 
@@ -341,10 +394,34 @@ export async function enrichLaunch(
   }
 
   // Step 4: Apply results and update state machine
-  await applyExtractionResult(
+  const { rescheduled } = await applyExtractionResult(
     launchRecordId,
     extraction,
     profileData,
-    record.ruleSource === RuleSource.TIER_A
+    record.ruleSource === RuleSource.TIER_A,
+    triggerTweetId
   );
+
+  if (triggerTweetId && !rescheduled) {
+    const launchDateStr = extraction.launchDate.value;
+    const launchDateConfidence = extraction.launchDate.confidence;
+    let parsedLaunch: Date | null = null;
+    if (launchDateStr) {
+      const p = new Date(launchDateStr);
+      if (!isNaN(p.getTime())) parsedLaunch = p;
+    }
+
+    if (parsedLaunch && launchDateConfidence >= 0.6) {
+      const { timeBadge, timeBadgeDetail } = timeBadgeFromLaunchDate(parsedLaunch);
+      await prisma.tweetSignal.updateMany({
+        where: { tweetId: triggerTweetId },
+        data: { timeBadge, timeBadgeDetail },
+      });
+    } else {
+      await prisma.tweetSignal.updateMany({
+        where: { tweetId: triggerTweetId },
+        data: { timeBadge: null, timeBadgeDetail: null },
+      });
+    }
+  }
 }

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { AppMode, Plan, Timeframe } from '../types';
 
-export const LAYOUT_STORAGE_KEY = 'launchradar:layout:v2';
+export const LAYOUT_STORAGE_KEY = 'launchradar:layout:v4';
 
 interface AppStore {
   filters: {

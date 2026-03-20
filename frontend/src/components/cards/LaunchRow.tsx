@@ -20,7 +20,7 @@ const STATUS_COLORS: Record<LaunchStatus, string> = {
   VERIFIED: '#00D4FF',
   LIVE: '#22C55E',
   STALE: '#6B7280',
-  CANCELLED: '#6B7280',
+  CANCELLED: '#FB7185',
 };
 
 function formatShortTime(date: string | null): string {
@@ -56,13 +56,17 @@ export function LaunchRow({ launch, locked = false }: { launch: LaunchRecord; lo
       transition={{ duration: 0.2 }}
       onClick={() => openDrawer(launch.id)}
       className={`flex items-center gap-3 px-3 py-2 hover:bg-white/[0.03] cursor-pointer
-                 transition-colors rounded ${isNewHighlight ? 'launch-new-highlight bg-radar-amber/[0.07]' : ''}`}
+                 transition-colors rounded ${isNewHighlight ? 'launch-new-highlight bg-radar-amber/[0.07]' : ''} ${
+        launch.status === 'CANCELLED' ? 'bg-rose-950/20 hover:bg-rose-950/30' : ''
+      }`}
       style={{
         borderLeft: isNewHighlight
           ? '2px solid rgba(245, 197, 66, 0.65)'
-          : launch.status === 'VERIFIED'
-            ? '2px solid #00D4FF33'
-            : '2px solid transparent',
+          : launch.status === 'CANCELLED'
+            ? '2px solid rgba(244, 63, 94, 0.45)'
+            : launch.status === 'VERIFIED'
+              ? '2px solid #00D4FF33'
+              : '2px solid transparent',
         opacity: launch.status === 'STUB' ? 0.5 : 1,
       }}
     >

@@ -9,6 +9,7 @@ export function PanelShell({
   onClose,
   children,
   actions,
+  className = '',
 }: {
   title: string;
   icon?: ComponentType<LucideProps>;
@@ -16,9 +17,12 @@ export function PanelShell({
   onClose?: () => void;
   children: ReactNode;
   actions?: ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="flex flex-col h-full rounded-lg border border-radar-border bg-radar-panel backdrop-blur-sm">
+    <div
+      className={`flex flex-col h-full rounded-lg border border-radar-border bg-radar-panel backdrop-blur-sm ${className}`}
+    >
       <div className="flex items-center justify-between px-3 py-2 border-b border-radar-border cursor-move select-none drag-handle">
         <div className="flex items-center gap-2">
           {Icon ? (

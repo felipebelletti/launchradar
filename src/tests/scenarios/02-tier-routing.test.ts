@@ -5,6 +5,7 @@ import { Worker } from 'bullmq';
 import '../helpers/ocr-mock.js';
 import {
   mockStage1Yes,
+  mockShillNo,
   mockStage2Yes,
   mockStage2No,
   mockTimingFuture,
@@ -41,6 +42,7 @@ describe('Scenario 2: Tier A vs Tier B Routing', () => {
   });
 
   it('2a - Tier A skips AI filters, goes straight to extraction', async () => {
+    mockShillNo();
     mockTimingFuture();
     mockExtractor({
       projectName: 'DefiProjectXyz',
@@ -81,6 +83,7 @@ describe('Scenario 2: Tier A vs Tier B Routing', () => {
 
   it('2b - Tier B goes through both AI filters', async () => {
     mockStage1Yes();
+    mockShillNo();
     mockStage2Yes();
     mockTimingFuture();
     mockExtractor({
@@ -119,6 +122,7 @@ describe('Scenario 2: Tier A vs Tier B Routing', () => {
 
   it('2c - Tier B discarded by Stage 2 (not crypto)', async () => {
     mockStage1Yes();
+    mockShillNo();
     mockStage2No();
 
     const { tweetData, ruleLabel } = makeTierBPayload({

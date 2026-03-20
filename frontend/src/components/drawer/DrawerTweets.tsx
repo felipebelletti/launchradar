@@ -1,7 +1,8 @@
 import { formatDistanceToNow } from 'date-fns';
 import { ExternalLink } from 'lucide-react';
 import type { TweetSignal } from '../../types';
-import { tweetStatusUrl } from '../../tweet-status-url';
+import { tweetStatusUrl, twitterProfileUrl } from '../../tweet-status-url';
+import { TweetTimeBadgePill } from '../shared/TweetTimeBadge';
 
 export function DrawerTweets({ tweets }: { tweets?: TweetSignal[] }) {
   if (!tweets || tweets.length === 0) {
@@ -12,11 +13,20 @@ export function DrawerTweets({ tweets }: { tweets?: TweetSignal[] }) {
     <div className="flex flex-col gap-3">
       {tweets.map((t) => (
         <div key={t.id} className="py-2 border-b border-radar-border last:border-b-0">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[9px] font-mono text-radar-muted">
               {t.authorHandle[0]?.toUpperCase() ?? '?'}
             </div>
-            <span className="text-xs font-mono text-radar-cyan">@{t.authorHandle}</span>
+            <a
+              href={twitterProfileUrl(t.authorHandle)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-mono text-radar-cyan hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              @{t.authorHandle.replace(/^@/, '')}
+            </a>
+            <TweetTimeBadgePill badge={t.timeBadge} timeBadgeDetail={t.timeBadgeDetail} />
             <span className="text-[10px] font-mono text-radar-muted ml-auto">
               {formatDistanceToNow(new Date(t.createdAt), { addSuffix: true })}
             </span>

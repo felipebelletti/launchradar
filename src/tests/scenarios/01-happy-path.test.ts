@@ -5,6 +5,7 @@ import { Worker } from 'bullmq';
 import '../helpers/ocr-mock.js';
 import {
   mockStage1Yes,
+  mockShillNo,
   mockStage2Yes,
   mockTimingFuture,
   mockExtractor,
@@ -41,6 +42,7 @@ describe('Scenario 1: Happy Path', () => {
 
   it('should ingest a Tier B crypto tweet through the full pipeline', async () => {
     mockStage1Yes();
+    mockShillNo();
     mockStage2Yes();
     mockTimingFuture();
     mockExtractor({

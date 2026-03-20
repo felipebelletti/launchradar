@@ -178,6 +178,8 @@ export async function registerLaunchRoutes(app: FastifyInstance): Promise<void> 
         tweets: { orderBy: { createdAt: 'desc' as const }, take: 1 },
       };
 
+      const activeStatus = { notIn: ['LIVE', 'CANCELLED', 'STALE'] as LaunchStatus[] };
+
       const [live, hour, today, week, tbd] = await Promise.all([
         prisma.launchRecord.findMany({
           where: { ...baseWhere, status: 'LIVE' },
@@ -186,25 +188,25 @@ export async function registerLaunchRoutes(app: FastifyInstance): Promise<void> 
           include,
         }),
         prisma.launchRecord.findMany({
-          where: { ...baseWhere, status: { not: 'LIVE' }, launchDate: { gte: now, lte: inOneHour } },
+          where: { ...baseWhere, status: activeStatus, launchDate: { gte: now, lte: inOneHour } },
           orderBy: { launchDate: 'asc' },
           take: 20,
           include,
         }),
         prisma.launchRecord.findMany({
-          where: { ...baseWhere, status: { not: 'LIVE' }, launchDate: { gt: inOneHour, lte: endOfDay } },
+          where: { ...baseWhere, status: activeStatus, launchDate: { gt: inOneHour, lte: endOfDay } },
           orderBy: { launchDate: 'asc' },
           take: 20,
           include,
         }),
         prisma.launchRecord.findMany({
-          where: { ...baseWhere, status: { not: 'LIVE' }, launchDate: { gt: endOfDay, lte: inOneWeek } },
+          where: { ...baseWhere, status: activeStatus, launchDate: { gt: endOfDay, lte: inOneWeek } },
           orderBy: { launchDate: 'asc' },
           take: 20,
           include,
         }),
         prisma.launchRecord.findMany({
-          where: { ...baseWhere, status: { not: 'LIVE' }, launchDate: null },
+          where: { ...baseWhere, status: activeStatus, launchDate: null },
           orderBy: { createdAt: 'desc' },
           take: 20,
           include,

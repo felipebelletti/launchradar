@@ -53,7 +53,7 @@ export function useRealtimeEvents() {
 
           if (parsed.type === 'launch:cancelled') {
             void queryClient.invalidateQueries({ queryKey: ['launches'] });
-            queryClient.removeQueries({ queryKey: ['launch', parsed.payload.id] });
+            void queryClient.invalidateQueries({ queryKey: ['launch', parsed.payload.id] });
             void queryClient.invalidateQueries({ queryKey: ['calendar'] });
           }
         } catch {

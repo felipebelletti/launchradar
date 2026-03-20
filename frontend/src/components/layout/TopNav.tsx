@@ -1,6 +1,6 @@
 import {
   Monitor, LayoutList, Plus, RotateCcw,
-  CalendarClock, Radio, Link, Tags, Flame, MessageSquareQuote, Eye,
+  CalendarClock, Radio, Link, Tags, Flame, Eye, Ban,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { LucideProps } from 'lucide-react';
@@ -14,8 +14,8 @@ const ALL_PANELS: { id: string; label: string; icon: ComponentType<LucideProps>;
   { id: 'chain',     label: 'Chains',     icon: Link,              color: 'text-radar-cyan' },
   { id: 'category',  label: 'Categories', icon: Tags,              color: 'text-radar-orange' },
   { id: 'heatmap',   label: 'Heatmap',    icon: Flame,             color: 'text-radar-amber' },
-  { id: 'tweets',    label: 'Tweets',     icon: MessageSquareQuote, color: 'text-radar-muted' },
-  { id: 'watchlist', label: 'Watchlist',  icon: Eye,               color: 'text-radar-cyan' },
+  { id: 'watchlist', label: 'Watchlist',  icon: Eye,               color: 'text-sky-400' },
+  { id: 'cancelled', label: 'Cancelled', icon: Ban,               color: 'text-rose-400' },
 ];
 
 export function TopNav() {

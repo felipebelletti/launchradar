@@ -1,6 +1,18 @@
 export type LaunchStatus = 'STUB' | 'PARTIAL' | 'CONFIRMED' | 'VERIFIED' | 'LIVE' | 'STALE' | 'CANCELLED';
 export type SourceType = 'TWEET' | 'PROFILE' | 'WEBSITE' | 'MANUAL' | 'IMAGE_OCR';
 export type RuleSource = 'TIER_A' | 'TIER_B' | 'TIER_C';
+export type IngestTiming = 'FUTURE' | 'LIVE' | 'UNKNOWN';
+export type TweetTimeBadge =
+  | 'LIVE_NOW'
+  | 'NEXT_HOUR'
+  | 'TODAY'
+  | 'THIS_WEEK'
+  | 'LATER'
+  | 'IN_N_DAYS'
+  | 'UPCOMING'
+  | 'TIME_UNKNOWN'
+  | 'RESCHEDULED'
+  | 'NO_DATE';
 export type Plan = 'free' | 'scout' | 'alpha' | 'pro';
 export type AppMode = 'terminal' | 'simple';
 export type Timeframe = 'hour' | 'today' | 'week' | 'tbd' | 'all';
@@ -12,6 +24,8 @@ export interface LaunchRecord {
   launchDate: string | null;
   launchDateRaw: string | null;
   launchDateConfidence: number | null;
+  previousLaunchDate: string | null;
+  rescheduledAt: string | null;
   launchType: string | null;
   chain: string | null;
   category: string | null;
@@ -44,6 +58,9 @@ export interface TweetSignal {
   createdAt: string;
   ingestedAt: string;
   launchRecordId: string | null;
+  ingestTiming?: IngestTiming | null;
+  timeBadge?: TweetTimeBadge | null;
+  timeBadgeDetail?: number | null;
 }
 
 export interface LaunchSource {

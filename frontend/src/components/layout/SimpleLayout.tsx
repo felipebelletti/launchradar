@@ -1,5 +1,6 @@
 import { useCalendar } from '../../hooks/useCalendar';
 import { useLaunches } from '../../hooks/useLaunches';
+import { useCancelledLaunches } from '../../hooks/useCancelledLaunches';
 import { useAppStore } from '../../store/app.store';
 import { LaunchCard } from '../cards/LaunchCard';
 import { LaunchRow } from '../cards/LaunchRow';
@@ -11,6 +12,7 @@ const CATEGORIES = ['DeFi', 'NFT', 'GameFi', 'Launchpad', 'L2', 'Meme', 'Other']
 export function SimpleLayout() {
   const { data: calendar } = useCalendar();
   const { data: launches } = useLaunches();
+  const { data: cancelled } = useCancelledLaunches();
   const activeChains = useAppStore((s) => s.filters.chains);
   const activeCats = useAppStore((s) => s.filters.categories);
   const toggleChain = useAppStore((s) => s.toggleChain);
@@ -81,7 +83,6 @@ export function SimpleLayout() {
         </div>
       ))}
 
-      {/* Live feed */}
       <div>
         <h2 className="text-xs font-mono font-bold tracking-widest text-radar-muted mb-3 border-b border-radar-border pb-1">
           LIVE FEED
@@ -92,6 +93,23 @@ export function SimpleLayout() {
         {(!sorted || sorted.length === 0) && (
           <p className="text-[10px] font-mono text-radar-muted/50 text-center py-4">
             NO SIGNALS IN RANGE
+          </p>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-rose-500/25 bg-linear-to-b from-rose-950/20 to-transparent p-4">
+        <h2 className="text-xs font-mono font-bold tracking-widest text-rose-400/90 mb-3 border-b border-rose-500/20 pb-1">
+          CANCELLED
+        </h2>
+        {cancelled && cancelled.length > 0 ? (
+          <div className="grid gap-2">
+            {cancelled.map((l) => (
+              <LaunchCard key={l.id} launch={l} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-[10px] font-mono text-radar-muted/50 text-center py-4">
+            NO CANCELLED LAUNCHES
           </p>
         )}
       </div>

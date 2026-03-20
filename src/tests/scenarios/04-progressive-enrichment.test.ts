@@ -5,6 +5,7 @@ import { Worker } from 'bullmq';
 import '../helpers/ocr-mock.js';
 import {
   mockStage1Yes,
+  mockShillNo,
   mockStage2Yes,
   mockTimingFuture,
   mockExtractor,
@@ -62,6 +63,7 @@ describe('Scenario 4: Progressive Enrichment', () => {
   it('should progressively enrich a LaunchRecord through three tweets', async () => {
     // === Tweet 1 (Tier B — initial signal) ===
     mockStage1Yes();
+    mockShillNo();
     mockStage2Yes();
     mockTimingFuture();
     mockExtractor({
