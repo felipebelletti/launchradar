@@ -50,10 +50,22 @@ export async function isLaunchAnnouncement(
 
 export type LaunchTiming = 'future' | 'live' | 'unknown';
 
+function hasPumpFunLink(tweetText: string, ocrText: string): boolean {
+  const s = `${tweetText}\n${ocrText}`.toLowerCase();
+  if (/\bpump\.fun\//.test(s)) return true;
+  if (/(?:https?:\/\/)(?:www\.)?pump\.fun\b/.test(s)) return true;
+  return false;
+}
+
 export async function classifyLaunchTiming(
   tweetText: string,
   ocrText: string
 ): Promise<LaunchTiming> {
+  if (hasPumpFunLink(tweetText, ocrText)) {
+    log.debug('Launch timing: pump.fun URL → live (heuristic)');
+    return 'live';
+  }
+
   const userContent = [
     `Classify this tweet:`,
     `- "future" the project/token/protocol is announcing it will launch soon or on a specific date`,
