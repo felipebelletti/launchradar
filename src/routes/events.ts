@@ -18,6 +18,8 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
     });
     reply.raw.flushHeaders();
 
+    reply.raw.write('event: connected\ndata: {}\n\n');
+
     // Each SSE client gets its own Redis subscriber connection
     // Do NOT reuse the main redis client — subscribe() changes connection mode
     const subscriber = redis.duplicate();

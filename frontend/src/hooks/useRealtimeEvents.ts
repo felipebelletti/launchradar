@@ -23,6 +23,10 @@ export function useRealtimeEvents() {
         retryDelay.current = 1000;
       };
 
+      es.addEventListener('connected', () => {
+        setConnected(true);
+      });
+
       es.addEventListener('ping', () => {
         setConnected(true);
       });

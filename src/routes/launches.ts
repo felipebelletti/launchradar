@@ -148,12 +148,6 @@ export async function registerLaunchRoutes(app: FastifyInstance): Promise<void> 
 
       const totalPages = Math.ceil(total / limitNum);
 
-      log.info('Launch feed', {
-        count: launches.length,
-        total,
-        page: pageNum,
-      });
-
       return reply.status(200).send({
         data: launches,
         pagination: {

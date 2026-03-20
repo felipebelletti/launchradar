@@ -27,6 +27,7 @@ Rules:
 - launchDate and launchDateRaw are ONLY for a scheduled, teased, or upcoming go-live (future mint/listing/TGE/presale window you can honestly put on a calendar).
 - If the text describes something ALREADY live, already listed, or past price action (e.g. "surged X%", "within 24 hours after launching", "gains", "JUST IN" price headlines), set launchDate and launchDateRaw to null with confidence 0. Do not treat performance time windows as launch dates.
 - launchDate value should be an ISO 8601 date string if parseable, otherwise null
+- The current date/time is {CURRENT_DATETIME}. Use this to resolve relative time expressions like "in 3 hours", "tomorrow", "next week", "tonight" into absolute ISO 8601 timestamps
 - launchDateRaw is the raw date text from the content (e.g. "end of March", "Q2 2025") — not phrases like "within 24 hours" when they refer to how long ago a pump happened
 - ticker should be uppercase, without the $ prefix
 - If a field cannot be determined, set value to null and confidence to 0
@@ -60,7 +61,8 @@ function buildPrompt(
     .replace('{TWEET_TEXT}', tweetText)
     .replace('{AUTHOR_BIO}', authorBio || 'N/A')
     .replace('{OCR_SECTION}', ocrSection)
-    .replace('{WEBSITE_SECTION}', websiteSection);
+    .replace('{WEBSITE_SECTION}', websiteSection)
+    .replace('{CURRENT_DATETIME}', new Date().toISOString());
 }
 
 function parseExtractionResponse(raw: string): ExtractionResult {
