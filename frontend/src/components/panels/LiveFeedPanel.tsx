@@ -1,3 +1,4 @@
+import { Radio } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import { useLaunches } from '../../hooks/useLaunches';
 import { useAppStore } from '../../store/app.store';
@@ -22,7 +23,7 @@ export function LiveFeedPanel({ onClose }: { onClose?: () => void }) {
     : 0;
 
   return (
-    <PanelShell title="LIVE FEED" onClose={onClose}>
+    <PanelShell title="LIVE FEED" icon={Radio} iconColor="text-radar-red" onClose={onClose}>
       {isLoading && (
         <div className="flex items-center justify-center h-full text-radar-muted font-mono text-sm">
           SCANNING...

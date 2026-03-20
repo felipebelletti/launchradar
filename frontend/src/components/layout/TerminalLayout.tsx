@@ -3,7 +3,7 @@ import { Responsive } from 'react-grid-layout';
 import type { Layout, Layouts } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
-import { useAppStore } from '../../store/app.store';
+import { useAppStore, LAYOUT_STORAGE_KEY } from '../../store/app.store';
 import { CalendarPanel } from '../panels/CalendarPanel';
 import { LiveFeedPanel } from '../panels/LiveFeedPanel';
 import { ChainFilterPanel } from '../panels/ChainFilterPanel';
@@ -12,7 +12,6 @@ import { HeatmapPanel } from '../panels/HeatmapPanel';
 import { SourceTweetsPanel } from '../panels/SourceTweetsPanel';
 import { WatchlistPanel } from '../panels/WatchlistPanel';
 
-const LAYOUT_KEY = 'launchradar:layout:v1';
 const ROW_HEIGHT = 80;
 
 const DEFAULT_LAYOUT: Layout[] = [
@@ -27,7 +26,7 @@ const DEFAULT_LAYOUT: Layout[] = [
 
 function loadLayout(): Layout[] {
   try {
-    const saved = localStorage.getItem(LAYOUT_KEY);
+    const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
     if (saved) return JSON.parse(saved) as Layout[];
   } catch { /* use default */ }
   return DEFAULT_LAYOUT;
@@ -46,7 +45,14 @@ const PANELS: Record<string, (onClose: () => void) => React.ReactNode> = {
 export function TerminalLayout() {
   const closedPanels = useAppStore((s) => s.closedPanels);
   const closePanel = useAppStore((s) => s.closePanel);
+  const layoutVersion = useAppStore((s) => s.layoutVersion);
   const [layouts, setLayouts] = useState<Layout[]>(loadLayout);
+
+  useEffect(() => {
+    if (layoutVersion > 0) {
+      setLayouts(DEFAULT_LAYOUT);
+    }
+  }, [layoutVersion]);
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(1200);
 
@@ -62,8 +68,17 @@ export function TerminalLayout() {
   }, []);
 
   const onLayoutChange = useCallback((layout: Layout[], _allLayouts: Layouts) => {
-    setLayouts(layout);
-    localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout));
+    // Merge updated positions for visible panels while preserving hidden panel layouts
+    setLayouts((prev) => {
+      const updated = new Map(layout.map((l) => [l.i, l]));
+      const merged = prev.map((l) => updated.get(l.i) ?? l);
+      // Add any new entries from layout that weren't in prev
+      for (const l of layout) {
+        if (!prev.some((p) => p.i === l.i)) merged.push(l);
+      }
+      localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(merged));
+      return merged;
+    });
   }, []);
 
   const visiblePanels = layouts.filter((l) => !closedPanels.has(l.i));
@@ -78,13 +93,15 @@ export function TerminalLayout() {
         cols={{ lg: 12, md: 8, sm: 4 }}
         rowHeight={ROW_HEIGHT}
         onLayoutChange={onLayoutChange}
+        isResizable
+        resizeHandles={['s', 'e', 'w', 'n', 'se', 'sw', 'ne', 'nw']}
         draggableHandle=".drag-handle"
         containerPadding={[16, 16]}
         margin={[12, 12]}
         useCSSTransforms
       >
         {visiblePanels.map((l) => (
-          <div key={l.i}>
+          <div key={l.i} className="h-full">
             {PANELS[l.i]?.(() => closePanel(l.i))}
           </div>
         ))}

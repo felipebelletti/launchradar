@@ -1,16 +1,21 @@
-import { Monitor, LayoutList, Plus, RotateCcw } from 'lucide-react';
+import {
+  Monitor, LayoutList, Plus, RotateCcw,
+  CalendarClock, Radio, Link, Tags, Flame, MessageSquareQuote, Eye,
+} from 'lucide-react';
+import type { ComponentType } from 'react';
+import type { LucideProps } from 'lucide-react';
 import { useAppStore } from '../../store/app.store';
 import { NewPill } from '../shared/NewPill';
 import { ConnectionDot } from '../shared/ConnectionDot';
 
-const ALL_PANELS = [
-  { id: 'calendar', label: 'Calendar' },
-  { id: 'live-feed', label: 'Live Feed' },
-  { id: 'chain', label: 'Chains' },
-  { id: 'category', label: 'Categories' },
-  { id: 'heatmap', label: 'Heatmap' },
-  { id: 'tweets', label: 'Tweets' },
-  { id: 'watchlist', label: 'Watchlist' },
+const ALL_PANELS: { id: string; label: string; icon: ComponentType<LucideProps>; color: string }[] = [
+  { id: 'calendar',  label: 'Calendar',   icon: CalendarClock,     color: 'text-radar-amber' },
+  { id: 'live-feed', label: 'Live Feed',  icon: Radio,             color: 'text-radar-red' },
+  { id: 'chain',     label: 'Chains',     icon: Link,              color: 'text-radar-cyan' },
+  { id: 'category',  label: 'Categories', icon: Tags,              color: 'text-radar-orange' },
+  { id: 'heatmap',   label: 'Heatmap',    icon: Flame,             color: 'text-radar-amber' },
+  { id: 'tweets',    label: 'Tweets',     icon: MessageSquareQuote, color: 'text-radar-muted' },
+  { id: 'watchlist', label: 'Watchlist',  icon: Eye,               color: 'text-radar-cyan' },
 ];
 
 export function TopNav() {
@@ -18,7 +23,7 @@ export function TopNav() {
   const setMode = useAppStore((s) => s.setMode);
   const closedPanels = useAppStore((s) => s.closedPanels);
   const restorePanel = useAppStore((s) => s.restorePanel);
-  const resetPanels = useAppStore((s) => s.resetPanels);
+  const resetLayout = useAppStore((s) => s.resetLayout);
 
   const closedList = ALL_PANELS.filter((p) => closedPanels.has(p.id));
 
@@ -35,27 +40,35 @@ export function TopNav() {
         {/* Restore closed panels */}
         {closedList.length > 0 && (
           <div className="flex items-center gap-1">
-            {closedList.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => restorePanel(p.id)}
-                className="flex items-center gap-1 px-2 py-1 text-[10px] font-mono text-radar-muted
-                           hover:text-radar-text bg-white/[0.03] rounded transition-colors"
-                title={`Restore ${p.label}`}
-              >
-                <Plus size={10} />
-                {p.label}
-              </button>
-            ))}
-            <button
-              onClick={resetPanels}
-              className="p-1 text-radar-muted hover:text-radar-text transition-colors"
-              title="Reset Layout"
-            >
-              <RotateCcw size={14} />
-            </button>
+            {closedList.map((p) => {
+              const Icon = p.icon;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => restorePanel(p.id)}
+                  className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-mono text-radar-muted
+                             hover:text-radar-text bg-white/[0.03] rounded transition-colors group"
+                  title={`Restore ${p.label}`}
+                >
+                  <Icon size={10} className={`${p.color} opacity-60 group-hover:opacity-100 transition-opacity`} />
+                  {p.label}
+                  <Plus size={8} className="opacity-0 group-hover:opacity-60 transition-opacity" />
+                </button>
+              );
+            })}
           </div>
         )}
+
+        {/* Reset layout */}
+        <button
+          onClick={resetLayout}
+          className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-mono text-radar-muted
+                     hover:text-radar-text bg-white/[0.03] rounded transition-colors"
+          title="Reset layout to default"
+        >
+          <RotateCcw size={10} />
+          RESET
+        </button>
 
         {/* Mode toggle */}
         <div className="flex items-center bg-white/[0.04] rounded-lg p-0.5">

@@ -1,3 +1,4 @@
+import { Tags } from 'lucide-react';
 import { useAppStore } from '../../store/app.store';
 import { useLaunches } from '../../hooks/useLaunches';
 import { PanelShell } from './PanelShell';
@@ -17,7 +18,7 @@ export function CategoryFilterPanel({ onClose }: { onClose?: () => void }) {
   }
 
   return (
-    <PanelShell title="CATEGORIES" onClose={onClose}>
+    <PanelShell title="CATEGORIES" icon={Tags} iconColor="text-radar-orange" onClose={onClose}>
       <div className="flex flex-col gap-2">
         {CATEGORIES.map((cat) => {
           const count = counts[cat] ?? 0;

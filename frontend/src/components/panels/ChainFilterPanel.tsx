@@ -1,3 +1,4 @@
+import { Link } from 'lucide-react';
 import { useAppStore } from '../../store/app.store';
 import { useLaunches } from '../../hooks/useLaunches';
 import { PanelShell } from './PanelShell';
@@ -25,7 +26,7 @@ export function ChainFilterPanel({ onClose }: { onClose?: () => void }) {
   }
 
   return (
-    <PanelShell title="CHAINS" onClose={onClose}>
+    <PanelShell title="CHAINS" icon={Link} iconColor="text-radar-cyan" onClose={onClose}>
       <div className="flex flex-col gap-2">
         {CHAINS.map((chain) => {
           const count = counts[chain] ?? 0;

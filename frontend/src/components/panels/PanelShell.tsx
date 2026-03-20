@@ -1,22 +1,31 @@
-import { X, Settings } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { X } from 'lucide-react';
+import type { ReactNode, ComponentType } from 'react';
+import type { LucideProps } from 'lucide-react';
 
 export function PanelShell({
   title,
+  icon: Icon,
+  iconColor = 'text-radar-amber',
   onClose,
   children,
   actions,
 }: {
   title: string;
+  icon?: ComponentType<LucideProps>;
+  iconColor?: string;
   onClose?: () => void;
   children: ReactNode;
   actions?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col h-full rounded-lg border border-radar-border bg-radar-panel backdrop-blur-sm overflow-hidden">
+    <div className="flex flex-col h-full rounded-lg border border-radar-border bg-radar-panel backdrop-blur-sm">
       <div className="flex items-center justify-between px-3 py-2 border-b border-radar-border cursor-move select-none drag-handle">
         <div className="flex items-center gap-2">
-          <span className="text-radar-amber text-xs">{'\u25C8'}</span>
+          {Icon ? (
+            <Icon size={12} className={iconColor} />
+          ) : (
+            <span className="text-radar-amber text-xs">{'\u25C8'}</span>
+          )}
           <h2 className="text-xs font-mono font-bold tracking-widest text-radar-muted uppercase">
             {title}
           </h2>
@@ -24,17 +33,12 @@ export function PanelShell({
         <div className="flex items-center gap-1">
           {actions}
           {onClose && (
-            <>
-              <button className="p-1 hover:text-radar-text text-radar-muted transition-colors">
-                <Settings size={12} />
-              </button>
-              <button
-                onClick={onClose}
-                className="p-1 hover:text-radar-red text-radar-muted transition-colors"
-              >
-                <X size={12} />
-              </button>
-            </>
+            <button
+              onClick={onClose}
+              className="p-1 hover:text-radar-red text-radar-muted transition-colors"
+            >
+              <X size={12} />
+            </button>
           )}
         </div>
       </div>

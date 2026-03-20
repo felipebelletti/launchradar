@@ -1,3 +1,4 @@
+import { CalendarClock } from 'lucide-react';
 import { useCalendar } from '../../hooks/useCalendar';
 import { useAppStore } from '../../store/app.store';
 import { PanelShell } from './PanelShell';
@@ -18,7 +19,7 @@ export function CalendarPanel({ onClose }: { onClose?: () => void }) {
   const plan = useAppStore((s) => s.plan);
 
   return (
-    <PanelShell title="LAUNCH CALENDAR" onClose={onClose}>
+    <PanelShell title="LAUNCH CALENDAR" icon={CalendarClock} onClose={onClose}>
       {isLoading && (
         <div className="flex items-center justify-center h-full text-radar-muted font-mono text-sm">
           SCANNING...

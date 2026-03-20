@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { AppMode, Plan, Timeframe } from '../types';
 
+export const LAYOUT_STORAGE_KEY = 'launchradar:layout:v2';
+
 interface AppStore {
   filters: {
     chains: Set<string>;
@@ -15,6 +17,7 @@ interface AppStore {
   plan: Plan;
   connected: boolean;
   closedPanels: Set<string>;
+  layoutVersion: number;
 
   toggleChain: (chain: string) => void;
   toggleCategory: (cat: string) => void;
@@ -29,6 +32,7 @@ interface AppStore {
   closePanel: (id: string) => void;
   restorePanel: (id: string) => void;
   resetPanels: () => void;
+  resetLayout: () => void;
 }
 
 export const useAppStore = create<AppStore>((set) => ({
@@ -45,6 +49,7 @@ export const useAppStore = create<AppStore>((set) => ({
   plan: 'alpha',
   connected: false,
   closedPanels: new Set<string>(),
+  layoutVersion: 0,
 
   toggleChain: (chain) =>
     set((s) => {
@@ -98,4 +103,9 @@ export const useAppStore = create<AppStore>((set) => ({
     }),
 
   resetPanels: () => set({ closedPanels: new Set<string>() }),
+
+  resetLayout: () => {
+    localStorage.removeItem(LAYOUT_STORAGE_KEY);
+    set((s) => ({ closedPanels: new Set<string>(), layoutVersion: s.layoutVersion + 1 }));
+  },
 }));

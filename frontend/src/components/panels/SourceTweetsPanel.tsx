@@ -1,3 +1,4 @@
+import { MessageSquareQuote } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useAppStore } from '../../store/app.store';
 import { useLaunch } from '../../hooks/useLaunch';
@@ -32,7 +33,7 @@ export function SourceTweetsPanel({ onClose }: { onClose?: () => void }) {
   const { data: launch } = useLaunch(selectedId);
 
   return (
-    <PanelShell title="SOURCE TWEETS" onClose={onClose}>
+    <PanelShell title="SOURCE TWEETS" icon={MessageSquareQuote} iconColor="text-radar-muted" onClose={onClose}>
       <GatedContent requiredPlan="scout" currentPlan={plan} ctaText="CLASSIFIED \u2014 UPGRADE TO SCOUT">
         {launch?.tweets && launch.tweets.length > 0 ? (
           launch.tweets.map((t) => <TweetEntry key={t.id} tweet={t} />)

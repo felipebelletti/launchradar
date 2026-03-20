@@ -1,3 +1,4 @@
+import { Flame } from 'lucide-react';
 import { useAppStore } from '../../store/app.store';
 import { useLaunches } from '../../hooks/useLaunches';
 import { PanelShell } from './PanelShell';
@@ -43,7 +44,7 @@ export function HeatmapPanel({ onClose }: { onClose?: () => void }) {
   );
 
   return (
-    <PanelShell title="CONFIDENCE HEATMAP" onClose={onClose}>
+    <PanelShell title="CONFIDENCE HEATMAP" icon={Flame} iconColor="text-radar-amber" onClose={onClose}>
       <GatedContent requiredPlan="alpha" currentPlan={plan} ctaText="CLASSIFIED \u2014 ALPHA FEATURE">
         {content}
       </GatedContent>

@@ -39,9 +39,64 @@
   opacity: 1 !important;
 }
 
+/* Resize handles — all edges and corners */
+.react-grid-item > .react-resizable-handle {
+  z-index: 10;
+  position: absolute;
+}
+
 .react-grid-item > .react-resizable-handle::after {
-  border-right-color: rgba(245, 197, 66, 0.4) !important;
-  border-bottom-color: rgba(245, 197, 66, 0.4) !important;
+  display: none;
+}
+
+/* Edge handles */
+.react-grid-item > .react-resizable-handle-s {
+  bottom: 0; left: 8px; right: 8px; height: 6px;
+  width: auto;
+  cursor: s-resize;
+}
+.react-grid-item > .react-resizable-handle-n {
+  top: 0; left: 8px; right: 8px; height: 6px;
+  width: auto;
+  cursor: n-resize;
+}
+.react-grid-item > .react-resizable-handle-e {
+  right: 0; top: 8px; bottom: 8px; width: 6px;
+  height: auto;
+  cursor: e-resize;
+}
+.react-grid-item > .react-resizable-handle-w {
+  left: 0; top: 8px; bottom: 8px; width: 6px;
+  height: auto;
+  cursor: w-resize;
+}
+
+/* Corner handles */
+.react-grid-item > .react-resizable-handle-se {
+  bottom: 0; right: 0; width: 10px; height: 10px;
+  cursor: se-resize;
+}
+.react-grid-item > .react-resizable-handle-sw {
+  bottom: 0; left: 0; width: 10px; height: 10px;
+  cursor: sw-resize;
+}
+.react-grid-item > .react-resizable-handle-ne {
+  top: 0; right: 0; width: 10px; height: 10px;
+  cursor: ne-resize;
+}
+.react-grid-item > .react-resizable-handle-nw {
+  top: 0; left: 0; width: 10px; height: 10px;
+  cursor: nw-resize;
+}
+
+/* Highlight edges on hover */
+.react-grid-item:hover > .react-resizable-handle-s,
+.react-grid-item:hover > .react-resizable-handle-n {
+  background: linear-gradient(to bottom, transparent, rgba(245, 197, 66, 0.15), transparent);
+}
+.react-grid-item:hover > .react-resizable-handle-e,
+.react-grid-item:hover > .react-resizable-handle-w {
+  background: linear-gradient(to right, transparent, rgba(245, 197, 66, 0.15), transparent);
 }
 
 @keyframes pulse-amber {
