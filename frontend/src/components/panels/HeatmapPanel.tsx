@@ -9,6 +9,7 @@ const STATUS_COLORS: Record<LaunchStatus, string> = {
   PARTIAL: '#F5A623',
   CONFIRMED: '#F5C542',
   VERIFIED: '#00D4FF',
+  LIVE: '#22C55E',
   STALE: '#333',
   CANCELLED: '#333',
 };

@@ -218,7 +218,7 @@ export async function registerLaunchRoutes(app: FastifyInstance): Promise<void> 
       ]);
 
       return reply.status(200).send({
-        data: { hour, today, week, tbd, live },
+        data: { hour, today, week, live, tbd },
       });
     }
   );

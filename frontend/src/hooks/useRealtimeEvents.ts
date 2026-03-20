@@ -34,21 +34,12 @@ export function useRealtimeEvents() {
 
           if (parsed.type === 'launch:new') {
             addPending(parsed.payload.id);
-            queryClient.setQueriesData<LaunchRecord[]>(
-              { queryKey: ['launches'] },
-              (old) => old ? [parsed.payload, ...old] : [parsed.payload],
-            );
+            void queryClient.invalidateQueries({ queryKey: ['launches'] });
             void queryClient.invalidateQueries({ queryKey: ['calendar'] });
           }
 
           if (parsed.type === 'launch:updated') {
-            queryClient.setQueriesData<LaunchRecord[]>(
-              { queryKey: ['launches'] },
-              (old) =>
-                old?.map((l) =>
-                  l.id === parsed.payload.id ? parsed.payload : l,
-                ),
-            );
+            void queryClient.invalidateQueries({ queryKey: ['launches'] });
             queryClient.setQueryData<LaunchRecord>(
               ['launch', parsed.payload.id],
               parsed.payload,
@@ -57,10 +48,7 @@ export function useRealtimeEvents() {
           }
 
           if (parsed.type === 'launch:cancelled') {
-            queryClient.setQueriesData<LaunchRecord[]>(
-              { queryKey: ['launches'] },
-              (old) => old?.filter((l) => l.id !== parsed.payload.id),
-            );
+            void queryClient.invalidateQueries({ queryKey: ['launches'] });
             queryClient.removeQueries({ queryKey: ['launch', parsed.payload.id] });
             void queryClient.invalidateQueries({ queryKey: ['calendar'] });
           }

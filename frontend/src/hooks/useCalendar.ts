@@ -8,17 +8,25 @@ export function useCalendar() {
 
   const params = new URLSearchParams();
   if (filters.chains.size > 0) {
-    params.set('chain', [...filters.chains].join(','));
+    params.set('chain', [...filters.chains].sort().join(','));
   }
   if (filters.categories.size > 0) {
-    params.set('category', [...filters.categories].join(','));
+    params.set('category', [...filters.categories].sort().join(','));
   }
 
   const qs = params.toString();
   const url = `${API_BASE_URL}/launches/calendar${qs ? `?${qs}` : ''}`;
 
+  const queryKey = [
+    'calendar',
+    {
+      chain: filters.chains.size ? [...filters.chains].sort().join(',') : undefined,
+      category: filters.categories.size ? [...filters.categories].sort().join(',') : undefined,
+    },
+  ] as const;
+
   return useQuery<CalendarData>({
-    queryKey: ['calendar', Object.fromEntries(params)],
+    queryKey,
     queryFn: async () => {
       const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch calendar');

@@ -48,6 +48,56 @@ export async function isLaunchAnnouncement(
   }
 }
 
+export type LaunchTiming = 'future' | 'live' | 'unknown';
+
+export async function classifyLaunchTiming(
+  tweetText: string,
+  ocrText: string
+): Promise<LaunchTiming> {
+  const userContent = [
+    `Classify this tweet:`,
+    `- "future" the project/token/protocol is announcing it will launch soon or on a specific date`,
+    `- "live" the project/token/protocol has just launched or is live right now`,
+    `- "unknown" cannot determine`,
+    ``,
+    `Tweet: "${tweetText}"`,
+    ocrText ? `[Image text]: "${ocrText}"` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const start = Date.now();
+
+  try {
+    const response = await xaiClient.responses.create({
+      model: GROK_MODEL,
+      max_output_tokens: 5,
+      input: [
+        { role: 'system', content: 'You are a classifier. Reply with only one word: "future", "live", or "unknown".' },
+        { role: 'user', content: userContent },
+      ],
+      store: false,
+    });
+
+    const text = (response.output_text ?? '').trim().toLowerCase();
+
+    const usage = response.usage as { input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number } | undefined;
+    log.debug('Launch timing result', {
+      result: text,
+      durationMs: Date.now() - start,
+      inputTokens: usage?.input_tokens ?? usage?.prompt_tokens,
+      outputTokens: usage?.output_tokens ?? usage?.completion_tokens,
+    });
+
+    if (text === 'live') return 'live';
+    if (text === 'future') return 'future';
+    return 'unknown';
+  } catch (err) {
+    log.error('Launch timing classifier error', { err, durationMs: Date.now() - start });
+    return 'unknown';
+  }
+}
+
 export async function isCryptoRelated(
   tweetText: string,
   authorBio: string,

@@ -6,6 +6,7 @@ import '../helpers/ocr-mock.js';
 import {
   mockStage1Yes,
   mockStage2Yes,
+  mockTimingFuture,
   mockExtractor,
 } from '../helpers/ai-mock.js';
 import { makeTierBPayload } from '../helpers/fixtures.js';
@@ -59,6 +60,7 @@ describe('Scenario 6: Deduplication', () => {
   it('6a - Dedup by twitterHandle: multiple tweets from same author merge into one record', async () => {
     mockStage1Yes();
     mockStage2Yes();
+    mockTimingFuture();
     mockExtractor({ projectName: 'AquaFi', ticker: 'AQUA', chain: 'Solana' });
     mockProfileForHandle('aquafi_official');
 
@@ -73,6 +75,7 @@ describe('Scenario 6: Deduplication', () => {
 
     mockStage1Yes();
     mockStage2Yes();
+    mockTimingFuture();
     mockExtractor({ projectName: 'AquaFi', ticker: 'AQUA', chain: 'Solana' });
     mockProfileForHandle('crypto_influencer_99');
 
@@ -87,6 +90,7 @@ describe('Scenario 6: Deduplication', () => {
 
     mockStage1Yes();
     mockStage2Yes();
+    mockTimingFuture();
     mockExtractor({ projectName: 'AquaFi', chain: 'Solana' });
     mockProfileForHandle('sol_degen_trader');
 
@@ -106,6 +110,7 @@ describe('Scenario 6: Deduplication', () => {
   it('6c - Same tweet delivered twice (idempotency)', async () => {
     mockStage1Yes();
     mockStage2Yes();
+    mockTimingFuture();
     mockExtractor({ projectName: 'DupeTest', chain: 'Ethereum' });
     mockProfileForHandle('dupe_test_user');
 
@@ -135,6 +140,7 @@ describe('Scenario 6: Deduplication', () => {
   it('6d - Different project, same author — both tweets ingested into same record (dedup by handle)', async () => {
     mockStage1Yes();
     mockStage2Yes();
+    mockTimingFuture();
     mockExtractor({ projectName: 'ProjectA', ticker: 'TKNA', chain: 'Solana' });
     mockProfileForHandle('multi_project_dev');
 
@@ -149,6 +155,7 @@ describe('Scenario 6: Deduplication', () => {
 
     mockStage1Yes();
     mockStage2Yes();
+    mockTimingFuture();
     mockExtractor({ projectName: 'ProjectB', ticker: 'TKNB', chain: 'Ethereum' });
     mockProfileForHandle('multi_project_dev');
 
@@ -175,6 +182,7 @@ describe('Scenario 6: Deduplication', () => {
   it('6b - Multiple tweets from same handle merge into one record with all signals', async () => {
     mockStage1Yes();
     mockStage2Yes();
+    mockTimingFuture();
     mockExtractor({ projectName: 'AquaFi', ticker: 'AQUA', chain: 'Solana' });
     mockProfileForHandle('aqua_official_2');
 
@@ -189,6 +197,7 @@ describe('Scenario 6: Deduplication', () => {
 
     mockStage1Yes();
     mockStage2Yes();
+    mockTimingFuture();
     mockExtractor({
       projectName: 'AquaFi Protocol',
       ticker: 'AQUA',

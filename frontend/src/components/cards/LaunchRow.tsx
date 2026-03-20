@@ -8,6 +8,7 @@ const STATUS_ICONS: Record<LaunchStatus, string> = {
   PARTIAL: '\u25CE',
   CONFIRMED: '\u25CF',
   VERIFIED: '\u2726',
+  LIVE: '\u25B6',
   STALE: '\u25CB',
   CANCELLED: '\u2715',
 };
@@ -17,6 +18,7 @@ const STATUS_COLORS: Record<LaunchStatus, string> = {
   PARTIAL: '#F5A623',
   CONFIRMED: '#F5C542',
   VERIFIED: '#00D4FF',
+  LIVE: '#22C55E',
   STALE: '#6B7280',
   CANCELLED: '#6B7280',
 };

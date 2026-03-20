@@ -7,6 +7,7 @@ import {
   mockStage1Yes,
   mockStage2Yes,
   mockStage2No,
+  mockTimingFuture,
   mockExtractor,
   getAiCallLog,
   getRemainingQueuedResponses,
@@ -40,6 +41,7 @@ describe('Scenario 2: Tier A vs Tier B Routing', () => {
   });
 
   it('2a - Tier A skips AI filters, goes straight to extraction', async () => {
+    mockTimingFuture();
     mockExtractor({
       projectName: 'DefiProjectXyz',
       chain: 'Solana',
@@ -80,6 +82,7 @@ describe('Scenario 2: Tier A vs Tier B Routing', () => {
   it('2b - Tier B goes through both AI filters', async () => {
     mockStage1Yes();
     mockStage2Yes();
+    mockTimingFuture();
     mockExtractor({
       projectName: 'CryptoLaunchB',
       chain: 'Ethereum',

@@ -11,7 +11,7 @@ export function startEnrichmentWorker(): Worker<EnrichmentJobData> {
     'enrich-launch',
     async (job) => {
       log.info('Processing enrichment job', { launchRecordId: job.data.launchRecordId });
-      await enrichLaunch(job.data.launchRecordId);
+      await enrichLaunch(job.data.launchRecordId, job.data.timing);
     },
     {
       connection: getBullMQConnection(),

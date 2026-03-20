@@ -6,6 +6,7 @@ import '../helpers/ocr-mock.js';
 import {
   mockStage1Yes,
   mockStage2Yes,
+  mockTimingFuture,
   mockExtractor,
 } from '../helpers/ai-mock.js';
 import { makeTierBPayload } from '../helpers/fixtures.js';
@@ -41,6 +42,7 @@ describe('Scenario 1: Happy Path', () => {
   it('should ingest a Tier B crypto tweet through the full pipeline', async () => {
     mockStage1Yes();
     mockStage2Yes();
+    mockTimingFuture();
     mockExtractor({
       projectName: 'AquaFi',
       chain: 'Solana',

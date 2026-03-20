@@ -9,8 +9,8 @@ const COLUMNS = [
   { key: 'hour', label: 'NEXT HOUR', requiredPlan: null },
   { key: 'today', label: 'TODAY', requiredPlan: null },
   { key: 'week', label: 'THIS WEEK', requiredPlan: 'scout' as const },
-  { key: 'tbd', label: 'TBD', requiredPlan: 'alpha' as const },
   { key: 'live', label: 'LIVE', requiredPlan: null },
+  { key: 'tbd', label: 'TBD', requiredPlan: 'alpha' as const },
 ] as const;
 
 export function CalendarPanel({ onClose }: { onClose?: () => void }) {

@@ -2,7 +2,8 @@ import { RuleSource } from '@prisma/client';
 import { prisma } from '../db/client.js';
 import { redis } from '../redis.js';
 import { ocrTweetImages } from '../ocr/image-ocr.js';
-import { isLaunchAnnouncement, isCryptoRelated } from '../ai/classifier.js';
+import { isLaunchAnnouncement, isCryptoRelated, classifyLaunchTiming } from '../ai/classifier.js';
+import type { LaunchTiming } from '../ai/classifier.js';
 import { isLikelyPriceRecapNotUpcomingLaunch } from '../ai/launch-signal-guard.js';
 import { findExistingRecord } from './dedup.service.js';
 import { enrichmentQueue } from '../queues/enrichment.queue.js';
@@ -153,6 +154,10 @@ export async function ingestTweet(
     });
   }
 
+  // Step 2b: Classify launch timing (future vs live) — runs after crypto filter passes
+  const timing: LaunchTiming = await classifyLaunchTiming(tweet.text, ocrText);
+  log.debug('Launch timing classified', { tweetId: tweet.id, timing });
+
   // Step 3: Dedup check — find existing LaunchRecord
   const existingRecord = await findExistingRecord(
     tweet.authorHandle,
@@ -258,7 +263,7 @@ export async function ingestTweet(
   // Step 6: Queue enrichment job (deduplicated by launchRecordId)
   await enrichmentQueue.add(
     'enrich-launch',
-    { launchRecordId, twitterHandle: tweet.authorHandle },
+    { launchRecordId, twitterHandle: tweet.authorHandle, timing },
     {
       jobId: launchRecordId,
       attempts: 3,

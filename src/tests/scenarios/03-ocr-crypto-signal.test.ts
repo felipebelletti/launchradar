@@ -6,6 +6,7 @@ import { getTesseractMock, mockOcrResult, mockOcrFailure } from '../helpers/ocr-
 import {
   mockStage1Yes,
   mockStage2Yes,
+  mockTimingFuture,
   mockExtractor,
   getAiCallLog,
 } from '../helpers/ai-mock.js';
@@ -45,6 +46,7 @@ describe('Scenario 3: OCR Provides the Crypto Signal', () => {
 
     mockStage1Yes();
     mockStage2Yes();
+    mockTimingFuture();
     mockExtractor({
       projectName: 'AquaFi',
       chain: 'Solana',
@@ -108,6 +110,7 @@ describe('Scenario 3: OCR Provides the Crypto Signal', () => {
 
     mockStage1Yes();
     mockStage2Yes();
+    mockTimingFuture();
     mockExtractor({
       projectName: 'FailOcrProject',
       chain: 'Ethereum',

@@ -77,6 +77,18 @@ export function mockStage2No(): void {
   responseQueue.push({ output_text: 'NO' });
 }
 
+export function mockTimingFuture(): void {
+  responseQueue.push({ output_text: 'future' });
+}
+
+export function mockTimingLive(): void {
+  responseQueue.push({ output_text: 'live' });
+}
+
+export function mockTimingUnknown(): void {
+  responseQueue.push({ output_text: 'unknown' });
+}
+
 export function mockCancellationYes(): void {
   responseQueue.push({ output_text: 'YES' });
 }

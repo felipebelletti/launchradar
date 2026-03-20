@@ -6,6 +6,7 @@ import '../helpers/ocr-mock.js';
 import {
   mockStage1Yes,
   mockStage2Yes,
+  mockTimingFuture,
   mockExtractor,
 } from '../helpers/ai-mock.js';
 import { makeTierBPayload, makeTierCPayload } from '../helpers/fixtures.js';
@@ -62,6 +63,7 @@ describe('Scenario 4: Progressive Enrichment', () => {
     // === Tweet 1 (Tier B — initial signal) ===
     mockStage1Yes();
     mockStage2Yes();
+    mockTimingFuture();
     mockExtractor({
       projectName: 'Solrise',
       chain: 'Solana',
@@ -96,6 +98,7 @@ describe('Scenario 4: Progressive Enrichment', () => {
     expect(record.launchDate).toBeNull();
 
     // === Tweet 2 (Tier C — follow-up from monitored account) ===
+    mockTimingFuture();
     mockExtractor({
       projectName: 'Solrise Finance',
       launchDate: '2025-03-28T00:00:00Z',
@@ -138,6 +141,7 @@ describe('Scenario 4: Progressive Enrichment', () => {
     expect(signals).toHaveLength(2);
 
     // === Tweet 3 (Tier C — launch day confirmation) ===
+    mockTimingFuture();
     mockExtractor({
       projectName: 'Solrise Finance',
       ticker: 'SLRS',

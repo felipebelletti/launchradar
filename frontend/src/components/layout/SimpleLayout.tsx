@@ -20,8 +20,8 @@ export function SimpleLayout() {
     { label: 'NEXT HOUR', items: calendar?.hour ?? [] },
     { label: 'TODAY', items: calendar?.today ?? [] },
     { label: 'THIS WEEK', items: calendar?.week ?? [] },
-    { label: 'TBD', items: calendar?.tbd ?? [] },
     { label: 'LIVE', items: calendar?.live ?? [] },
+    { label: 'TBD', items: calendar?.tbd ?? [] },
   ];
 
   const sorted = launches?.slice().sort(

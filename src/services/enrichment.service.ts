@@ -183,6 +183,7 @@ async function applyExtractionResult(
     updated.confidenceScore !== before.confidenceScore ||
     updated.projectName !== before.projectName ||
     updated.launchDate?.getTime() !== before.launchDate?.getTime() ||
+    updated.launchedAt?.getTime() !== before.launchedAt?.getTime() ||
     updated.chain !== before.chain;
 
   if (meaningful) {
@@ -197,7 +198,10 @@ async function applyExtractionResult(
 /**
  * Main enrichment function. Called by the enrichment worker.
  */
-export async function enrichLaunch(launchRecordId: string): Promise<void> {
+export async function enrichLaunch(
+  launchRecordId: string,
+  timing?: 'future' | 'live' | 'unknown'
+): Promise<void> {
   const record = await prisma.launchRecord.findUnique({
     where: { id: launchRecordId },
     include: {
@@ -231,7 +235,63 @@ export async function enrichLaunch(launchRecordId: string): Promise<void> {
   const tweetText = latestTweet?.text ?? '';
   const ocrText = latestTweet?.imageOcrText ?? '';
 
-  // Step 3: Run Stage 3 extractor
+  // Step 2b: Handle LIVE timing — set status to LIVE, still extract fields if missing
+  if (timing === 'live') {
+    const needsExtraction = !record.projectName || record.projectName === record.twitterHandle
+      || !record.chain || !record.category;
+
+    const extractedData: Record<string, string> = {};
+
+    if (needsExtraction) {
+      const extraction = await extractLaunchData(tweetText, profileData.bio, ocrText);
+      const candidates: Record<string, string | null | undefined> = {
+        projectName: extraction.projectName.value,
+        chain: extraction.chain.value,
+        category: extraction.category.value,
+        launchType: extraction.launchType.value,
+        ticker: extraction.ticker.value,
+        website: extraction.website.value ?? profileData.website,
+      };
+      for (const [key, val] of Object.entries(candidates)) {
+        if (val) extractedData[key] = val;
+      }
+    }
+
+    const before = await prisma.launchRecord.findUniqueOrThrow({
+      where: { id: launchRecordId },
+    });
+
+    const updated = await prisma.launchRecord.update({
+      where: { id: launchRecordId },
+      data: {
+        ...extractedData,
+        status: 'LIVE',
+        launchedAt: record.launchedAt ?? new Date(),
+        confidenceScore: Math.max(record.confidenceScore, 0.75),
+      },
+    });
+
+    const meaningful =
+      updated.status !== before.status ||
+      updated.confidenceScore !== before.confidenceScore ||
+      updated.projectName !== before.projectName ||
+      updated.launchDate?.getTime() !== before.launchDate?.getTime() ||
+      updated.launchedAt?.getTime() !== before.launchedAt?.getTime() ||
+      updated.chain !== before.chain;
+
+    if (meaningful) {
+      const sourceTweetUrl = await getPrimarySignalTweetUrlForLaunch(launchRecordId);
+      await publishEvent({
+        type: 'launch:updated',
+        payload: { ...updated, sourceTweetUrl },
+      });
+    }
+
+    log.info('Launch marked as LIVE', { launchRecordId, projectName: updated.projectName });
+    return;
+  }
+
+  // Step 3: Run Stage 3 extractor (future / unknown timing — normal flow)
   const extraction = withoutRecapLaunchTiming(
     await extractLaunchData(tweetText, profileData.bio, ocrText),
     tweetText,

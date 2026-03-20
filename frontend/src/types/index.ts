@@ -60,8 +60,8 @@ export interface CalendarData {
   hour: LaunchRecord[];
   today: LaunchRecord[];
   week: LaunchRecord[];
-  tbd: LaunchRecord[];
   live: LaunchRecord[];
+  tbd: LaunchRecord[];
 }
 
 export type BackendEvent =

@@ -5,6 +5,7 @@ import { Worker } from 'bullmq';
 import '../helpers/ocr-mock.js';
 import {
   mockExtractor,
+  mockTimingFuture,
   mockCancellationYes,
   mockCancellationNo,
   getAiCallLog,
@@ -63,6 +64,7 @@ describe('Scenario 5: Cancellation', () => {
 
   it('should transition a CONFIRMED record to CANCELLED on postponement tweet', async () => {
     // === Tweet 1 (Tier A — initial detection) ===
+    mockTimingFuture();
     mockCancellationNo();
     mockExtractor({
       projectName: 'MetaVault',
@@ -115,6 +117,7 @@ describe('Scenario 5: Cancellation', () => {
     expect(['CONFIRMED', 'VERIFIED', 'PARTIAL']).toContain(record.status);
 
     // === Tweet 2 (Tier C — cancellation signal) ===
+    mockTimingFuture();
     mockCancellationYes();
 
     nock('https://api.twitterapi.io')
