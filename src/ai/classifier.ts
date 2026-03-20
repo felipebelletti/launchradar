@@ -98,6 +98,66 @@ export async function classifyLaunchTiming(
   }
 }
 
+export async function isShillTweet(
+  tweetText: string,
+  ocrText: string
+): Promise<boolean> {
+  const userContent = [
+    `Is this tweet a shill, bot-bait, or spam? Reply with only "YES" or "NO".`,
+    ``,
+    `Say YES if the tweet:`,
+    `- Reads like a keyword list or hashtag dump rather than a real announcement`,
+    `- Uses pipe separators, slash lists, or bullet-like formatting to cram in multiple launch keywords`,
+    `- Has no real sentence structure — just tokens, buzzwords, and ticker symbols strung together`,
+    `- Appears designed to trigger keyword-monitoring bots rather than inform humans`,
+    `- Promotes buying a token rather than announcing a project milestone`,
+    ``,
+    `Say NO if the tweet:`,
+    `- Is a genuine, human-readable announcement from a project or community member`,
+    `- Contains actual information about a launch (date, chain, features, links)`,
+    `- Reads like something a real person would write to inform their followers`,
+    ``,
+    `Tweet: "${tweetText}"`,
+    ocrText ? `Image text: "${ocrText}"` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const start = Date.now();
+
+  try {
+    const response = await xaiClient.responses.create({
+      model: GROK_MODEL,
+      max_output_tokens: 5,
+      input: [
+        { role: 'system', content: 'You are a classifier. Reply with only "YES" or "NO".' },
+        { role: 'user', content: userContent },
+      ],
+      store: false,
+    });
+
+    const text = (response.output_text ?? 'NO').trim().toUpperCase();
+    const result = text === 'YES';
+
+    const usage = response.usage as {
+      input_tokens?: number; output_tokens?: number;
+      prompt_tokens?: number; completion_tokens?: number;
+    } | undefined;
+
+    log.debug('Shill detection result', {
+      result,
+      durationMs: Date.now() - start,
+      inputTokens: usage?.input_tokens ?? usage?.prompt_tokens,
+      outputTokens: usage?.output_tokens ?? usage?.completion_tokens,
+    });
+
+    return result;
+  } catch (err) {
+    log.error('Shill detector error', { err, durationMs: Date.now() - start });
+    return false; // safe default: don't discard on error
+  }
+}
+
 export async function isCryptoRelated(
   tweetText: string,
   authorBio: string,

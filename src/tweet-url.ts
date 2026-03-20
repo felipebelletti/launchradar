@@ -5,6 +5,20 @@ export function tweetStatusUrl(authorHandle: string, tweetId: string): string {
   return `https://x.com/${h}/status/${tweetId}`;
 }
 
+export function tweetUrlForLog(tweetId: string, authorHandle?: string): string {
+  if (authorHandle?.replace(/^@/, '').trim()) {
+    return tweetStatusUrl(authorHandle, tweetId);
+  }
+  return `https://x.com/i/status/${tweetId}`;
+}
+
+export function tweetLogFields(
+  tweetId: string,
+  authorHandle?: string,
+): { tweetId: string; tweetUrl: string } {
+  return { tweetId, tweetUrl: tweetUrlForLog(tweetId, authorHandle) };
+}
+
 export async function getPrimarySignalTweetUrlForLaunch(
   launchRecordId: string,
 ): Promise<string | null> {

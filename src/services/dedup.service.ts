@@ -1,5 +1,6 @@
 import { prisma } from '../db/client.js';
 import type { LaunchRecord } from '@prisma/client';
+import type { ExtractionResult } from '../types/index.js';
 
 /**
  * Simple Levenshtein distance implementation for fuzzy project name matching.
@@ -99,4 +100,88 @@ export async function findExistingRecord(
   }
 
   return null;
+}
+
+/**
+ * Post-extraction dedup: after Stage 3 returns structured data, check if a
+ * LaunchRecord already exists for the same project using extracted fields.
+ *
+ * Match priority (highest confidence first):
+ * 1. Exact ticker match (case-insensitive) — most reliable
+ * 2. Exact website domain match — very reliable
+ * 3. Fuzzy project name match (Levenshtein distance ≤ threshold) — fallback
+ */
+export async function findExistingRecordByExtraction(
+  extraction: ExtractionResult
+): Promise<LaunchRecord | null> {
+  const ticker = extraction.ticker.value?.toUpperCase() ?? null;
+  const website = extraction.website.value?.toLowerCase() ?? null;
+  const projectName = extraction.projectName.value ?? null;
+
+  // Only run dedup if we extracted at least one identity signal
+  if (!ticker && !website && !projectName) return null;
+
+  // 1. Ticker match — strongest signal
+  if (ticker && extraction.ticker.confidence >= 0.7) {
+    const byTicker = await prisma.launchRecord.findFirst({
+      where: {
+        ticker: { equals: ticker, mode: 'insensitive' },
+        status: { notIn: ['STALE', 'CANCELLED'] },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (byTicker) return byTicker;
+  }
+
+  // 2. Website match — extract domain for comparison
+  if (website && extraction.website.confidence >= 0.6) {
+    const domain = extractDomain(website);
+    if (domain) {
+      const byWebsite = await prisma.launchRecord.findFirst({
+        where: {
+          website: { contains: domain, mode: 'insensitive' },
+          status: { notIn: ['STALE', 'CANCELLED'] },
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (byWebsite) return byWebsite;
+    }
+  }
+
+  // 3. Fuzzy project name match — only if high confidence
+  if (projectName && extraction.projectName.confidence >= 0.8) {
+    const candidates = await prisma.launchRecord.findMany({
+      where: {
+        projectName: { not: undefined },
+        status: { notIn: ['STALE', 'CANCELLED'] },
+      },
+      select: { id: true, projectName: true },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+
+    for (const candidate of candidates) {
+      if (!candidate.projectName) continue;
+      const distance = levenshtein(
+        projectName.toLowerCase(),
+        candidate.projectName.toLowerCase()
+      );
+      const threshold = projectName.length > 8 ? 3 : 2;
+      if (distance <= threshold) {
+        return prisma.launchRecord.findUnique({ where: { id: candidate.id } });
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractDomain(url: string): string | null {
+  try {
+    const normalized = url.startsWith('http') ? url : `https://${url}`;
+    const { hostname } = new URL(normalized);
+    return hostname.replace(/^www\./, '');
+  } catch {
+    return null;
+  }
 }

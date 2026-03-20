@@ -2,6 +2,7 @@ import { LaunchStatus, RuleSource } from '@prisma/client';
 import { prisma } from '../db/client.js';
 import { extractLaunchData } from '../ai/extractor.js';
 import { isLikelyPriceRecapNotUpcomingLaunch } from '../ai/launch-signal-guard.js';
+import { findExistingRecordByExtraction } from './dedup.service.js';
 import * as twitterApi from './twitterapi.service.js';
 import { publishEvent } from '../events/publisher.js';
 import { createChildLogger } from '../logger.js';
@@ -303,6 +304,41 @@ export async function enrichLaunch(
     tweetText,
     ocrText,
   );
+
+  // Step 3b: Post-extraction dedup — check if another record exists for this project
+  const duplicateOf = await findExistingRecordByExtraction(extraction);
+
+  if (duplicateOf && duplicateOf.id !== launchRecordId) {
+    log.info('Duplicate project detected — merging into existing record', {
+      duplicateId: launchRecordId,
+      existingId: duplicateOf.id,
+      projectName: extraction.projectName.value,
+    });
+
+    await prisma.$transaction([
+      prisma.tweetSignal.updateMany({
+        where: { launchRecordId },
+        data: { launchRecordId: duplicateOf.id },
+      }),
+      prisma.launchSource.updateMany({
+        where: { launchRecordId },
+        data: { launchRecordId: duplicateOf.id },
+      }),
+      prisma.launchRecord.delete({
+        where: { id: launchRecordId },
+      }),
+    ]);
+
+    // Re-run enrichment on the surviving record with merged data
+    const { enrichmentQueue } = await import('../queues/enrichment.queue.js');
+    await enrichmentQueue.add(
+      'enrich-launch',
+      { launchRecordId: duplicateOf.id, twitterHandle: duplicateOf.twitterHandle ?? record.twitterHandle!, timing },
+      { jobId: duplicateOf.id },
+    );
+
+    return;
+  }
 
   // Step 4: Apply results and update state machine
   await applyExtractionResult(

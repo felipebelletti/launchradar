@@ -3,6 +3,7 @@ import { redis } from '../redis.js';
 import { config } from '../config.js';
 import { ingestTweet } from './ingest.service.js';
 import { createChildLogger } from '../logger.js';
+import { tweetLogFields } from '../tweet-url.js';
 import type { TweetData } from '../types/index.js';
 
 const log = createChildLogger('twitter-stream');
@@ -196,13 +197,13 @@ export class TwitterStreamClient {
       trackCredits(TWEET_CREDIT_COST)
         .then(withinBudget => {
           if (!withinBudget) {
-            log.warn('Skipping tweet due to budget', { tweetId: tweetData.id });
+            log.warn('Skipping tweet due to budget', tweetLogFields(tweetData.id, tweetData.authorHandle));
             return;
           }
           return ingestTweet(tweetData, rule_tag);
         })
         .catch(err => {
-          log.error('Ingest error for tweet', { tweetId: tweetData.id, err });
+          log.error('Ingest error for tweet', { ...tweetLogFields(tweetData.id, tweetData.authorHandle), err });
         });
     }
   }

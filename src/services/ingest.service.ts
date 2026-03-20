@@ -1,8 +1,9 @@
+import crypto from 'node:crypto';
 import { RuleSource } from '@prisma/client';
 import { prisma } from '../db/client.js';
 import { redis } from '../redis.js';
 import { ocrTweetImages } from '../ocr/image-ocr.js';
-import { isLaunchAnnouncement, isCryptoRelated, classifyLaunchTiming } from '../ai/classifier.js';
+import { isLaunchAnnouncement, isShillTweet, isCryptoRelated, classifyLaunchTiming } from '../ai/classifier.js';
 import type { LaunchTiming } from '../ai/classifier.js';
 import { isLikelyPriceRecapNotUpcomingLaunch } from '../ai/launch-signal-guard.js';
 import { findExistingRecord } from './dedup.service.js';
@@ -10,7 +11,7 @@ import { enrichmentQueue } from '../queues/enrichment.queue.js';
 import { registerAccountPolling } from '../queues/account-poll.queue.js';
 import { publishEvent } from '../events/publisher.js';
 import { createChildLogger } from '../logger.js';
-import { tweetStatusUrl } from '../tweet-url.js';
+import { tweetLogFields, tweetStatusUrl } from '../tweet-url.js';
 import type { TweetData } from '../types/index.js';
 
 const log = createChildLogger('ingest');
@@ -58,7 +59,7 @@ export async function ingestTweet(
   const DISCARD_KEY = 'discarded:tweet_ids';
   const alreadyDiscarded = await redis.sismember(DISCARD_KEY, tweet.id);
   if (alreadyDiscarded) {
-    log.debug('Already discarded tweet, skipping', { tweetId: tweet.id });
+    log.debug('Already discarded tweet, skipping', tweetLogFields(tweet.id, tweet.authorHandle));
     return;
   }
 
@@ -67,7 +68,7 @@ export async function ingestTweet(
     where: { tweetId: tweet.id },
   });
   if (existingSignal) {
-    log.debug('Duplicate tweet, skipping', { tweetId: tweet.id });
+    log.debug('Duplicate tweet, skipping', tweetLogFields(tweet.id, tweet.authorHandle));
     return;
   }
 
@@ -79,14 +80,17 @@ export async function ingestTweet(
     try {
       ocrText = await ocrTweetImages(tweet.imageUrls);
     } catch (err) {
-      log.warn('OCR failed for tweet images (non-fatal)', { err, tweetId: tweet.id });
+      log.warn('OCR failed for tweet images (non-fatal)', {
+        err,
+        ...tweetLogFields(tweet.id, tweet.authorHandle),
+      });
     }
   }
 
   const textForRecapGuard = [tweet.text, ocrText].filter(Boolean).join('\n');
   if (isLikelyPriceRecapNotUpcomingLaunch(textForRecapGuard)) {
     log.info('Tweet discarded: price recap / past launch heuristics', {
-      tweetId: tweet.id,
+      ...tweetLogFields(tweet.id, tweet.authorHandle),
       authorHandle: tweet.authorHandle,
       tier,
     });
@@ -100,7 +104,7 @@ export async function ingestTweet(
     const isLaunch = await isLaunchAnnouncement(tweet.text, ocrText);
     if (!isLaunch) {
       log.info('Tweet ranking: failed Stage 1 (not a launch)', {
-        tweetId: tweet.id,
+        ...tweetLogFields(tweet.id, tweet.authorHandle),
         authorHandle: tweet.authorHandle,
         stage: 'stage1_launch_filter',
         result: 'discard',
@@ -111,10 +115,21 @@ export async function ingestTweet(
       return;
     }
 
+    const isShill = await isShillTweet(tweet.text, ocrText);
+    if (isShill) {
+      log.info('Shill tweet discarded', {
+        ...tweetLogFields(tweet.id, tweet.authorHandle),
+        authorHandle: tweet.authorHandle,
+      });
+      await redis.sadd(DISCARD_KEY, tweet.id);
+      await redis.expire(DISCARD_KEY, 60 * 60 * 24 * 3);
+      return;
+    }
+
     const isCrypto = await isCryptoRelated(tweet.text, tweet.authorBio, ocrText);
     if (!isCrypto) {
       log.info('Tweet ranking: failed Stage 2 (not crypto)', {
-        tweetId: tweet.id,
+        ...tweetLogFields(tweet.id, tweet.authorHandle),
         authorHandle: tweet.authorHandle,
         stage: 'stage2_crypto_filter',
         result: 'discard',
@@ -126,7 +141,7 @@ export async function ingestTweet(
     }
 
     log.info('Tweet classified as crypto launch', {
-      tweetId: tweet.id,
+      ...tweetLogFields(tweet.id, tweet.authorHandle),
       authorHandle: tweet.authorHandle,
       tweetText: tweet.text,
       stage1: 'pass',
@@ -134,8 +149,19 @@ export async function ingestTweet(
       tier: 'TIER_B',
     });
   } else if (tier === RuleSource.TIER_A) {
+    const isShill = await isShillTweet(tweet.text, ocrText);
+    if (isShill) {
+      log.info('Shill tweet discarded (Tier A)', {
+        ...tweetLogFields(tweet.id, tweet.authorHandle),
+        authorHandle: tweet.authorHandle,
+      });
+      await redis.sadd(DISCARD_KEY, tweet.id);
+      await redis.expire(DISCARD_KEY, 60 * 60 * 24 * 3);
+      return;
+    }
+
     log.info('Tweet classified as crypto launch', {
-      tweetId: tweet.id,
+      ...tweetLogFields(tweet.id, tweet.authorHandle),
       authorHandle: tweet.authorHandle,
       tweetText: tweet.text,
       stage1: 'skip (chain-qualified)',
@@ -145,7 +171,7 @@ export async function ingestTweet(
     });
   } else {
     log.info('Tweet classified as crypto launch', {
-      tweetId: tweet.id,
+      ...tweetLogFields(tweet.id, tweet.authorHandle),
       authorHandle: tweet.authorHandle,
       tweetText: tweet.text,
       stage1: 'skip (monitored account)',
@@ -156,7 +182,40 @@ export async function ingestTweet(
 
   // Step 2b: Classify launch timing (future vs live) — runs after crypto filter passes
   const timing: LaunchTiming = await classifyLaunchTiming(tweet.text, ocrText);
-  log.debug('Launch timing classified', { tweetId: tweet.id, timing });
+  log.debug('Launch timing classified', { ...tweetLogFields(tweet.id, tweet.authorHandle), timing });
+
+  // Step 2c: Content-hash dedup — same tweet text = same signal, regardless of author
+  const contentHash = crypto
+    .createHash('sha256')
+    .update(tweet.text.trim().toLowerCase())
+    .digest('hex');
+
+  const hashKey = `tweet:content_hash:${contentHash}`;
+  const existingRecordIdByHash = await redis.get(hashKey);
+
+  if (existingRecordIdByHash) {
+    log.debug('Duplicate tweet content, merging signal', {
+      ...tweetLogFields(tweet.id, tweet.authorHandle),
+      existingRecordId: existingRecordIdByHash,
+    });
+
+    await prisma.tweetSignal.create({
+      data: {
+        tweetId: tweet.id,
+        text: tweet.text,
+        authorHandle: tweet.authorHandle,
+        authorId: tweet.authorId,
+        likes: tweet.likes,
+        retweets: tweet.retweets,
+        createdAt: tweet.createdAt,
+        launchRecordId: existingRecordIdByHash,
+        imageUrls: tweet.imageUrls,
+        imageOcrText: ocrText || null,
+      },
+    });
+
+    return;
+  }
 
   // Step 3: Dedup check — find existing LaunchRecord
   const existingRecord = await findExistingRecord(
@@ -199,8 +258,12 @@ export async function ingestTweet(
     });
 
     launchRecordId = existingRecord.id;
+
+    // Store content hash pointing to this record (7-day TTL)
+    await redis.set(hashKey, launchRecordId, 'EX', 60 * 60 * 24 * 7);
+
     log.info('Tweet merged into existing record', {
-      tweetId: tweet.id,
+      ...tweetLogFields(tweet.id, tweet.authorHandle),
       launchRecordId,
       signalId: tweetSignal.id,
       authorHandle: tweet.authorHandle,
@@ -245,6 +308,10 @@ export async function ingestTweet(
     });
 
     launchRecordId = launchRecord.id;
+
+    // Store content hash pointing to this record (7-day TTL)
+    await redis.set(hashKey, launchRecordId, 'EX', 60 * 60 * 24 * 7);
+
     log.info('Created new stub LaunchRecord', {
       launchRecordId,
       authorHandle: tweet.authorHandle,
