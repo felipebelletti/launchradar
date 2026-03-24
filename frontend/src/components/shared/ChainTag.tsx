@@ -22,7 +22,7 @@ export function ChainTag({ chain }: { chain: string | null }) {
 
   return (
     <span
-      className="px-2 py-0.5 rounded text-xs font-mono font-bold tracking-wider"
+      className="px-2 py-0.5 rounded text-xs font-mono font-bold tracking-wider whitespace-nowrap flex-shrink-0"
       style={{ backgroundColor: colors.bg, color: colors.text }}
     >
       {label}

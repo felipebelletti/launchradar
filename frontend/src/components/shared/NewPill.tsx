@@ -45,7 +45,7 @@ export function NewPill() {
       onClick={() => void handleClick()}
       className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold
                  bg-radar-amber/15 text-radar-amber border border-radar-amber/30
-                 hover:bg-radar-amber/25 transition-colors glow-amber"
+                 hover:bg-radar-amber/25 transition-colors glow-amber whitespace-nowrap flex-shrink-0"
     >
       <span className="text-[10px]">{'\u25B2'}</span>
       {count} NEW SIGNAL{count > 1 ? 'S' : ''}

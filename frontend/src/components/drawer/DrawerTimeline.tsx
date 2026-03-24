@@ -28,7 +28,7 @@ function buildTimeline(launch: LaunchRecord): TimelineEntry[] {
     label: `Signal detected via ${launch.ruleSource.toLowerCase().replace('_', ' ')} rule`,
   });
 
-  const tweets = [...launch.tweets].sort(
+  const tweets = [...(launch.tweets ?? [])].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 

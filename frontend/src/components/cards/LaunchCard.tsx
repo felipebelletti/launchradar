@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { ChainTag } from '../shared/ChainTag';
 import { StatusBadge } from '../shared/StatusBadge';
-import { ConfidenceBar } from '../shared/ConfidenceBar';
+import { CategoryBadge } from '../shared/CategoryBadge';
 import { useAppStore } from '../../store/app.store';
 import type { LaunchRecord } from '../../types';
 
@@ -13,9 +13,9 @@ function formatLaunchTime(
   launchedAt: string | null
 ): string {
   if (status === 'LIVE' && launchedAt) {
-    return `launched ${formatDistanceToNow(new Date(launchedAt))} ago`;
+    return `launched ${formatDistanceToNow(new Date(launchedAt), { addSuffix: true })}`;
   }
-  if (!date && raw) return raw;
+  if (!date && raw) return /^\s*soon\s*$/i.test(raw) ? 'TBD' : raw;
   if (!date) return 'TBD';
   const d = new Date(date);
   const now = new Date();
@@ -29,7 +29,7 @@ function formatLaunchTime(
 function RescheduledTag() {
   return (
     <span
-      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider"
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider whitespace-nowrap flex-shrink-0"
       style={{ color: '#F59E0B', backgroundColor: 'rgba(245, 158, 11, 0.1)' }}
     >
       RESCHEDULED
@@ -41,75 +41,75 @@ export function LaunchCard({ launch }: { launch: LaunchRecord }) {
   const openDrawer = useAppStore((s) => s.openDrawer);
   const isNewHighlight = useAppStore((s) => s.highlightedLaunchIds.includes(launch.id));
 
+  const timeLabel = formatLaunchTime(launch.launchDate, launch.launchDateRaw, launch.status, launch.launchedAt);
+
   return (
     <motion.div
       layout
       data-launch-card={launch.id}
-      initial={{ opacity: 0, y: -12 }}
+      initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.25, ease: 'easeOut' }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
       onClick={() => openDrawer(launch.id)}
-      className={`p-3 rounded-lg border bg-radar-panel cursor-pointer transition-colors group ${
+      className={`rounded-lg border p-3 cursor-pointer select-none overflow-hidden transition-colors duration-150 ${
         isNewHighlight ? 'launch-new-highlight ' : ''
       }${
         launch.status === 'CANCELLED'
-          ? 'border-rose-500/25 hover:border-rose-400/30 border-l-2 border-l-rose-500/55 bg-rose-950/[0.12]'
+          ? 'border-rose-500/25 hover:border-rose-400/30 bg-rose-950/[0.12]'
           : launch.status === 'LIVE'
-            ? 'border-cyan-500/30 hover:border-cyan-400/50 border-l-2 border-l-[#00D4FF]'
-            : 'border-radar-border hover:border-radar-amber/20'
+            ? 'border-cyan-400/30 hover:bg-cyan-400/[0.06] bg-cyan-400/[0.03]'
+            : 'border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]'
       }`}
     >
-      <div className="flex items-start justify-between mb-2">
+      {/* Row 1: Name + Status Badge */}
+      <div className="flex items-start justify-between gap-2 min-w-0">
         <h3
-          className={`font-display text-xl leading-none transition-colors ${
+          className={`font-display text-base leading-tight line-clamp-2 min-w-0 flex-1 transition-colors ${
             launch.status === 'CANCELLED'
-              ? 'text-radar-text/80 group-hover:text-rose-300/90'
-              : 'text-radar-text group-hover:text-radar-amber'
+              ? 'text-radar-text/80'
+              : launch.status === 'LIVE'
+                ? 'text-cyan-100'
+                : 'text-white'
           }`}
         >
           {launch.projectName}
         </h3>
-        <StatusBadge status={launch.status} />
-      </div>
-
-      <div className="flex items-center gap-2 mb-2">
-        <ChainTag chain={launch.chain} />
-        {launch.category && (
-          <span className="px-2 py-0.5 rounded text-xs font-mono text-radar-muted bg-white/5">
-            {launch.category}
-          </span>
-        )}
-      </div>
-
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span
-            className={`font-mono text-sm ${
-              launch.status === 'CANCELLED'
-                ? 'text-rose-300/80 line-through decoration-rose-500/50'
-                : launch.status === 'LIVE'
-                  ? 'text-cyan-400'
-                  : 'text-radar-amber'
-            }`}
-          >
-            {formatLaunchTime(launch.launchDate, launch.launchDateRaw, launch.status, launch.launchedAt)}
-          </span>
-          {launch.rescheduledAt && <RescheduledTag />}
+        <div className="flex-shrink-0 mt-0.5">
+          <StatusBadge status={launch.status} />
         </div>
-        {launch.status === 'LIVE' ? (
-          <div className="flex items-center gap-1.5">
-            <span className="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-            <span className="text-cyan-400 text-xs font-mono font-bold tracking-widest">
-              LIVE
-            </span>
-          </div>
-        ) : (
-          <ConfidenceBar launch={launch} />
-        )}
       </div>
 
-      <p className="text-[10px] font-mono text-radar-muted mt-2">
+      {/* Row 2: Chain + Category tags (same row) */}
+      {(launch.chain || launch.primaryCategory) && (
+        <div className="flex items-center gap-1.5 mt-2 min-w-0">
+          {launch.chain && <ChainTag chain={launch.chain} />}
+          {launch.primaryCategory && <CategoryBadge category={launch.primaryCategory} />}
+        </div>
+      )}
+
+      {/* Row 4: Time label (own line) */}
+      <p
+        className={`font-mono text-xs mt-2 truncate ${
+          launch.status === 'CANCELLED'
+            ? 'text-rose-300/80 line-through decoration-rose-500/50'
+            : launch.status === 'LIVE'
+              ? 'text-cyan-400'
+              : 'text-amber-400'
+        }`}
+      >
+        {timeLabel}
+      </p>
+
+      {/* Row 5: Rescheduled badge */}
+      {launch.rescheduledAt && (
+        <div className="mt-1">
+          <RescheduledTag />
+        </div>
+      )}
+
+      {/* Row 6: Discovery timestamp */}
+      <p className="text-[11px] text-white/30 font-mono mt-1.5 truncate">
         discovered {formatDistanceToNow(new Date(launch.createdAt), { addSuffix: true })}
       </p>
     </motion.div>

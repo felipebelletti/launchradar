@@ -4,7 +4,7 @@ import type { TweetSignal } from '../../types';
 import { tweetStatusUrl, twitterProfileUrl } from '../../tweet-status-url';
 import { TweetTimeBadgePill } from '../shared/TweetTimeBadge';
 
-export function DrawerTweets({ tweets }: { tweets?: TweetSignal[] }) {
+export function DrawerTweets({ tweets, launchDate }: { tweets?: TweetSignal[]; launchDate?: string | null }) {
   if (!tweets || tweets.length === 0) {
     return <p className="text-sm font-mono text-radar-muted/50">NO SOURCE TWEETS</p>;
   }
@@ -27,6 +27,11 @@ export function DrawerTweets({ tweets }: { tweets?: TweetSignal[] }) {
               @{t.authorHandle.replace(/^@/, '')}
             </a>
             <TweetTimeBadgePill badge={t.timeBadge} timeBadgeDetail={t.timeBadgeDetail} />
+            {t.timeBadge === 'RESCHEDULED' && launchDate && (
+              <span className="text-[9px] font-mono text-radar-amber/70">
+                → {new Date(launchDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+              </span>
+            )}
             <span className="text-[10px] font-mono text-radar-muted ml-auto">
               {formatDistanceToNow(new Date(t.createdAt), { addSuffix: true })}
             </span>

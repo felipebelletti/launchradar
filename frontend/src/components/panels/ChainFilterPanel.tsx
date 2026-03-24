@@ -13,6 +13,26 @@ const CHAIN_COLORS: Record<string, string> = {
   pump: '#00D4FF',
 };
 
+/** Map raw DB chain values (lowercased) to canonical display keys */
+const CHAIN_ALIAS_TO_KEY: Record<string, string> = {
+  solana: 'solana',
+  sol: 'solana',
+  ethereum: 'ethereum',
+  eth: 'ethereum',
+  base: 'base',
+  bsc: 'bsc',
+  binance: 'bsc',
+  bnb: 'bsc',
+  pump: 'pump',
+  'pump.fun': 'pump',
+  pumpfun: 'pump',
+};
+
+function normalizeChain(raw: string | null | undefined): string {
+  if (!raw) return 'unknown';
+  return CHAIN_ALIAS_TO_KEY[raw.toLowerCase()] ?? raw.toLowerCase();
+}
+
 export function ChainFilterPanel({ onClose }: { onClose?: () => void }) {
   const activeChains = useAppStore((s) => s.filters.chains);
   const toggle = useAppStore((s) => s.toggleChain);
@@ -21,12 +41,12 @@ export function ChainFilterPanel({ onClose }: { onClose?: () => void }) {
   const total = launches?.length ?? 0;
   const counts: Record<string, number> = {};
   for (const l of launches ?? []) {
-    const key = l.chain?.toLowerCase() ?? 'unknown';
+    const key = normalizeChain(l.chain);
     counts[key] = (counts[key] ?? 0) + 1;
   }
 
   return (
-    <PanelShell title="CHAINS" icon={Link} iconColor="text-radar-cyan" onClose={onClose}>
+    <PanelShell title="CHAINS" icon={Link} iconColor="text-radar-cyan" onClose={onClose} className="border-indigo-500/25 bg-[linear-gradient(180deg,rgba(15,10,72,0.28)_0%,rgba(10,10,15,0.92)_48%,rgba(10,10,15,1)_100%)] shadow-[inset_0_1px_0_0_rgba(99,102,241,0.1)]">
       <div className="flex flex-col gap-2">
         {CHAINS.map((chain) => {
           const count = counts[chain] ?? 0;

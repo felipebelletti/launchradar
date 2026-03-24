@@ -14,6 +14,7 @@ export function CancelledPanel({ onClose }: { onClose?: () => void }) {
   return (
     <PanelShell
       title="CANCELLED LAUNCHES"
+      panelId="cancelled"
       icon={Ban}
       iconColor="text-rose-400"
       onClose={onClose}

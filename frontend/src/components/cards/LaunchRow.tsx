@@ -1,5 +1,8 @@
 import { motion } from 'framer-motion';
 import { ChainTag } from '../shared/ChainTag';
+import { StatusBadge } from '../shared/StatusBadge';
+import { WatchButton } from '../shared/WatchButton';
+import { DiscardButton } from '../shared/DiscardButton';
 import { useAppStore } from '../../store/app.store';
 import type { LaunchRecord, LaunchStatus } from '../../types';
 
@@ -55,8 +58,10 @@ export function LaunchRow({ launch, locked = false }: { launch: LaunchRecord; lo
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.2 }}
       onClick={() => openDrawer(launch.id)}
-      className={`flex items-center gap-3 px-3 py-2 hover:bg-white/[0.03] cursor-pointer
-                 transition-colors rounded ${isNewHighlight ? 'launch-new-highlight bg-radar-amber/[0.07]' : ''} ${
+      className={`flex items-center gap-2 py-1.5 px-3 min-w-0 overflow-hidden
+                 hover:bg-white/[0.02] transition-colors cursor-pointer rounded ${
+        isNewHighlight ? 'launch-new-highlight bg-radar-amber/[0.07]' : ''
+      } ${
         launch.status === 'CANCELLED' ? 'bg-rose-950/20 hover:bg-rose-950/30' : ''
       }`}
       style={{
@@ -70,20 +75,26 @@ export function LaunchRow({ launch, locked = false }: { launch: LaunchRecord; lo
         opacity: launch.status === 'STUB' ? 0.5 : 1,
       }}
     >
-      <span style={{ color: STATUS_COLORS[launch.status] }}>{STATUS_ICONS[launch.status]}</span>
-      <span className="flex-1 font-mono text-sm truncate text-radar-text">
-        {launch.projectName}
+      {/* Status dot */}
+      <span className="flex-shrink-0" style={{ color: STATUS_COLORS[launch.status] }}>
+        {STATUS_ICONS[launch.status]}
       </span>
-      <ChainTag chain={launch.chain} />
-      {launch.category && (
-        <span className="text-xs text-radar-muted font-mono hidden sm:inline">{launch.category}</span>
-      )}
-      <span className="text-xs font-mono text-radar-muted w-14 text-right">
-        {formatShortTime(launch.launchDate)}
+
+      {/* Project name — truncate, never wrap */}
+      <span className="font-display text-sm truncate min-w-0 flex-1 text-radar-text">
+        {launch.projectName ?? '???'}
       </span>
-      <span className="text-xs font-mono font-bold w-20 text-right" style={{ color: STATUS_COLORS[launch.status] }}>
-        {launch.status === 'STUB' ? 'SIGNAL' : launch.status}
-      </span>
+
+      {/* Right side — all flex-shrink-0, never squeezed */}
+      <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
+        <DiscardButton launchId={launch.id} size={12} />
+        <WatchButton launchId={launch.id} size={12} />
+        <ChainTag chain={launch.chain} />
+        <span className="font-mono text-xs text-white/40 whitespace-nowrap w-14 text-right">
+          {launch.status === 'LIVE' ? 'LIVE' : formatShortTime(launch.launchDate)}
+        </span>
+        <StatusBadge status={launch.status} />
+      </div>
     </motion.div>
   );
 }

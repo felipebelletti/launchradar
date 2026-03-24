@@ -5,41 +5,44 @@ import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { useAppStore, LAYOUT_STORAGE_KEY } from '../../store/app.store';
 import { CalendarPanel } from '../panels/CalendarPanel';
-import { LiveFeedPanel } from '../panels/LiveFeedPanel';
+import { SignalIntelligencePanel } from '../panels/SignalIntelligencePanel';
 import { ChainFilterPanel } from '../panels/ChainFilterPanel';
 import { CategoryFilterPanel } from '../panels/CategoryFilterPanel';
-import { HeatmapPanel } from '../panels/HeatmapPanel';
 import { WatchlistPanel } from '../panels/WatchlistPanel';
-import { CancelledPanel } from '../panels/CancelledPanel';
+import { TrashBinPanel } from '../panels/TrashBinPanel';
 
 const ROW_HEIGHT = 80;
 
 const DEFAULT_LAYOUT: Layout[] = [
-  { i: 'calendar',  x: 0,  y: 0, w: 8, h: 6, minW: 4, minH: 4 },
-  { i: 'live-feed', x: 8,  y: 0, w: 4, h: 6, minW: 2, minH: 3 },
-  { i: 'chain',     x: 0,  y: 6, w: 2, h: 3, minW: 2, minH: 2 },
-  { i: 'category',  x: 2,  y: 6, w: 2, h: 3, minW: 2, minH: 2 },
-  { i: 'heatmap',   x: 4,  y: 6, w: 8, h: 3, minW: 4, minH: 2 },
-  { i: 'watchlist', x: 0,  y: 9, w: 4, h: 4, minW: 2, minH: 3 },
-  { i: 'cancelled', x: 4,  y: 9, w: 4, h: 4, minW: 2, minH: 3 },
+  { i: 'calendar',  x: 0, y: 0, w: 8, h: 6, minW: 4, minH: 4 },
+  { i: 'signal-intel', x: 8, y: 0, w: 4, h: 6, minW: 3, minH: 4 },
+  { i: 'chain',     x: 0, y: 6, w: 2, h: 2, minW: 2, minH: 2 },
+  { i: 'category',  x: 2, y: 6, w: 2, h: 2, minW: 2, minH: 2 },
+  { i: 'trash',     x: 4, y: 6, w: 4, h: 4, minW: 2, minH: 3 },
+  { i: 'watchlist', x: 8, y: 6, w: 4, h: 4, minW: 2, minH: 3 },
 ];
 
 function loadLayout(): Layout[] {
   try {
     const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
-    if (saved) return JSON.parse(saved) as Layout[];
+    if (saved) {
+      const parsed = JSON.parse(saved) as Layout[];
+      // Filter out removed panels (e.g. heatmap)
+      const validIds = new Set(DEFAULT_LAYOUT.map((l) => l.i));
+      const filtered = parsed.filter((l) => validIds.has(l.i));
+      if (filtered.length > 0) return filtered;
+    }
   } catch { /* use default */ }
   return DEFAULT_LAYOUT;
 }
 
 const PANELS: Record<string, (onClose: () => void) => React.ReactNode> = {
   'calendar':  (onClose) => <CalendarPanel onClose={onClose} />,
-  'live-feed': (onClose) => <LiveFeedPanel onClose={onClose} />,
+  'signal-intel': (onClose) => <SignalIntelligencePanel onClose={onClose} />,
   'chain':     (onClose) => <ChainFilterPanel onClose={onClose} />,
   'category':  (onClose) => <CategoryFilterPanel onClose={onClose} />,
-  'heatmap':   (onClose) => <HeatmapPanel onClose={onClose} />,
-  'watchlist': (onClose) => <WatchlistPanel onClose={onClose} />,
-  'cancelled': (onClose) => <CancelledPanel onClose={onClose} />,
+  'trash':     (onClose) => <TrashBinPanel onClose={onClose} />,
+  'watchlist':  (onClose) => <WatchlistPanel onClose={onClose} />,
 };
 
 export function TerminalLayout() {
@@ -96,6 +99,7 @@ export function TerminalLayout() {
         isResizable
         resizeHandles={['s', 'e', 'w', 'n', 'se', 'sw', 'ne', 'nw']}
         draggableHandle=".drag-handle"
+        draggableCancel=".no-grid-drag"
         containerPadding={[16, 16]}
         margin={[12, 12]}
         useCSSTransforms

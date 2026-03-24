@@ -58,7 +58,7 @@ export function formatTweetTimeBadge(
     case 'UPCOMING':
       return 'UPCOMING';
     case 'TIME_UNKNOWN':
-      return 'TIME UNKNOWN';
+      return null;
     case 'RESCHEDULED':
       return 'RESCHEDULED';
     case 'NO_DATE':

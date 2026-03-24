@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Face shape -->
+  <path d="M6 38 C6 18 16 6 32 6 C48 6 58 18 58 38 C58 52 48 60 32 60 C16 60 6 52 6 38Z" fill="#6E9B3A"/>
+  <!-- Left eye -->
+  <ellipse cx="20" cy="28" rx="10" ry="11" fill="#fff"/>
+  <!-- Right eye -->
+  <ellipse cx="44" cy="28" rx="10" ry="11" fill="#fff"/>
+  <!-- Left pupil -->
+  <circle cx="23" cy="30" r="4.5" fill="#1a1a1a"/>
+  <!-- Right pupil -->
+  <circle cx="47" cy="30" r="4.5" fill="#1a1a1a"/>
+  <!-- Mouth area - wide smug grin -->
+  <path d="M10 44 Q20 38 32 38 Q44 38 54 44 Q44 54 32 54 Q20 54 10 44Z" fill="#5A8530"/>
+  <!-- Lip line -->
+  <path d="M10 44 Q20 38 32 38 Q44 38 54 44" stroke="#3D5E1E" stroke-width="1.5" fill="none"/>
+</svg>

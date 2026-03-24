@@ -6,7 +6,10 @@ import { useAppStore } from '../../store/app.store';
 import { useLaunch } from '../../hooks/useLaunch';
 import { StatusBadge } from '../shared/StatusBadge';
 import { ChainTag } from '../shared/ChainTag';
+import { CategoryBadge } from '../shared/CategoryBadge';
 import { ConfidenceBar } from '../shared/ConfidenceBar';
+import { WatchButton } from '../shared/WatchButton';
+import { DiscardButton } from '../shared/DiscardButton';
 import { resolveSignalTweetUrl } from '../../tweet-status-url';
 import { DrawerTimeline } from './DrawerTimeline';
 import { DrawerTweets } from './DrawerTweets';
@@ -62,9 +65,13 @@ export function LaunchDrawer() {
                 >
                   {launch.projectName}
                 </h2>
-                <button onClick={close} className="p-1 text-radar-muted hover:text-radar-text transition-colors">
-                  <X size={20} />
-                </button>
+                <div className="flex items-center gap-1">
+                  <DiscardButton launchId={launch.id} size={18} />
+                  <WatchButton launchId={launch.id} size={18} />
+                  <button onClick={close} className="p-1 text-radar-muted hover:text-radar-text transition-colors">
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
               <StatusBadge status={launch.status} />
             </div>
@@ -82,7 +89,11 @@ export function LaunchDrawer() {
             {/* Metadata grid */}
             <div className="grid grid-cols-3 gap-x-4 gap-y-4 px-6 py-4 border-b border-radar-border">
               <MetaField label="CHAIN" value={<ChainTag chain={launch.chain} />} />
-              <MetaField label="CATEGORY" value={launch.category ?? '\u2014'} />
+              <MetaField label="CATEGORIES" value={
+                launch.categories.length > 0
+                  ? <div className="flex flex-wrap gap-1">{launch.categories.map((c) => <CategoryBadge key={c} category={c} />)}</div>
+                  : '\u2014'
+              } />
               <MetaField label="LAUNCH TYPE" value={launch.launchType ?? '\u2014'} />
               <MetaField
                 label="LAUNCH DATE"
@@ -91,7 +102,9 @@ export function LaunchDrawer() {
                     <span>
                       {launch.launchDate
                         ? new Date(launch.launchDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-                        : launch.launchDateRaw ?? 'TBD'}
+                        : launch.status === 'LIVE' && launch.launchedAt
+                          ? new Date(launch.launchedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+                          : (launch.launchDateRaw && !/^\s*soon\s*$/i.test(launch.launchDateRaw)) ? launch.launchDateRaw : 'TBD'}
                     </span>
                     {launch.rescheduledAt && launch.previousLaunchDate && (
                       <span className="text-[10px] font-mono text-amber-400">
@@ -159,8 +172,15 @@ export function LaunchDrawer() {
                   className="col-span-3 min-w-0"
                   label="TWITTER"
                   value={
-                    <span className="text-radar-cyan text-xs break-all">
-                      @{launch.twitterHandle}
+                    <span className="text-xs break-all">
+                      <a
+                        href={`https://x.com/${launch.twitterHandle.replace(/^@/, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-radar-cyan hover:underline"
+                      >
+                        @{launch.twitterHandle}
+                      </a>
                       {launch.twitterFollowers != null && (
                         <span className="text-radar-muted ml-1">({launch.twitterFollowers.toLocaleString()})</span>
                       )}
@@ -170,12 +190,22 @@ export function LaunchDrawer() {
               )}
             </div>
 
+            {/* Summary */}
+            {launch.summary && (
+              <div className="px-6 py-4 border-b border-radar-border">
+                <h3 className="text-xs font-mono font-bold tracking-widest text-radar-muted mb-2">
+                  SUMMARY
+                </h3>
+                <p className="text-sm text-radar-text/80 leading-relaxed">{launch.summary}</p>
+              </div>
+            )}
+
             {/* Source Tweets */}
             <div className="px-6 py-4 border-b border-radar-border">
               <h3 className="text-xs font-mono font-bold tracking-widest text-radar-muted mb-3">
                 SOURCE TWEETS
               </h3>
-              <DrawerTweets tweets={launch.tweets} />
+              <DrawerTweets tweets={launch.tweets} launchDate={launch.launchDate} />
             </div>
 
             {/* Timeline */}

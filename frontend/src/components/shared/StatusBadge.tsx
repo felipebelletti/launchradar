@@ -15,7 +15,7 @@ export function StatusBadge({ status }: { status: LaunchStatus }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-bold tracking-wider ${cfg.glowClass}`}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono font-bold tracking-wider whitespace-nowrap flex-shrink-0 ${cfg.glowClass}`}
       style={{ color: cfg.color, backgroundColor: `${cfg.color}15` }}
     >
       <span>{cfg.icon}</span>

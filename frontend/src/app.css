@@ -134,3 +134,16 @@
 .launch-new-highlight {
   animation: new-signal-highlight 1.1s ease-out forwards;
 }
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+/* Hidden scrollbar for panel columns (still scrollable) */
+.radar-scrollbar {
+  scrollbar-width: none;
+}
+.radar-scrollbar::-webkit-scrollbar {
+  display: none;
+}

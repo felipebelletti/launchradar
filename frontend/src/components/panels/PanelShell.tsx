@@ -1,9 +1,11 @@
 import { X } from 'lucide-react';
 import type { ReactNode, ComponentType } from 'react';
 import type { LucideProps } from 'lucide-react';
+import { PanelSettingsPopover } from './PanelSettingsPopover';
 
 export function PanelShell({
   title,
+  panelId,
   icon: Icon,
   iconColor = 'text-radar-amber',
   onClose,
@@ -12,6 +14,7 @@ export function PanelShell({
   className = '',
 }: {
   title: string;
+  panelId?: string;
   icon?: ComponentType<LucideProps>;
   iconColor?: string;
   onClose?: () => void;
@@ -36,6 +39,7 @@ export function PanelShell({
         </div>
         <div className="flex items-center gap-1">
           {actions}
+          {panelId && <PanelSettingsPopover panelId={panelId} />}
           {onClose && (
             <button
               onClick={onClose}

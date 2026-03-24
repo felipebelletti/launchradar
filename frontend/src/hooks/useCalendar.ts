@@ -13,6 +13,9 @@ export function useCalendar() {
   if (filters.categories.size > 0) {
     params.set('category', [...filters.categories].sort().join(','));
   }
+  if (filters.minFollowers !== null && filters.minFollowers > 0) {
+    params.set('minFollowers', String(filters.minFollowers));
+  }
 
   const qs = params.toString();
   const url = `${API_BASE_URL}/launches/calendar${qs ? `?${qs}` : ''}`;
@@ -22,6 +25,7 @@ export function useCalendar() {
     {
       chain: filters.chains.size ? [...filters.chains].sort().join(',') : undefined,
       category: filters.categories.size ? [...filters.categories].sort().join(',') : undefined,
+      minFollowers: filters.minFollowers,
     },
   ] as const;
 

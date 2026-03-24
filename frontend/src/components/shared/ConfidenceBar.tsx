@@ -14,11 +14,11 @@ export function ConfidenceBar({ launch, showLabels = false }: { launch: LaunchRe
   });
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-0.5">
       {SEGMENTS.map((seg, i) => (
         <div key={seg.key} className="flex flex-col items-center">
           <div
-            className="h-1.5 rounded-full transition-colors"
+            className="h-1.5 rounded-sm transition-colors"
             style={{
               width: showLabels ? 48 : 16,
               backgroundColor: filled[i] ? '#F5C542' : 'rgba(255,255,255,0.08)',

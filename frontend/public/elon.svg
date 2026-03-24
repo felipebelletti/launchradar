@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Head -->
+  <ellipse cx="32" cy="34" rx="20" ry="24" fill="#F0C8A0"/>
+  <!-- Hair -->
+  <path d="M12 28 Q14 10 32 8 Q50 10 52 28 Q48 18 32 16 Q16 18 12 28Z" fill="#3A2A1A"/>
+  <!-- Left eye -->
+  <ellipse cx="24" cy="32" rx="3.5" ry="2.5" fill="#222"/>
+  <!-- Right eye -->
+  <ellipse cx="40" cy="32" rx="3.5" ry="2.5" fill="#222"/>
+  <!-- Left eyebrow -->
+  <path d="M19 27 Q24 24 29 27" stroke="#3A2A1A" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <!-- Right eyebrow -->
+  <path d="M35 27 Q40 24 45 27" stroke="#3A2A1A" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <!-- Nose -->
+  <path d="M32 35 L30 40 L34 40Z" fill="#D4A87A" opacity="0.6"/>
+  <!-- Smirk -->
+  <path d="M24 46 Q32 50 40 46" stroke="#8B6B4A" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+</svg>

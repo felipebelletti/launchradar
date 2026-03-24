@@ -28,9 +28,11 @@ export interface LaunchRecord {
   rescheduledAt: string | null;
   launchType: string | null;
   chain: string | null;
-  category: string | null;
+  categories: string[];
+  primaryCategory: string | null;
   website: string | null;
   whitepaper: string | null;
+  summary: string | null;
   twitterHandle: string | null;
   twitterFollowers: number | null;
   isVerifiedAccount: boolean;
@@ -43,6 +45,7 @@ export interface LaunchRecord {
   updatedAt: string;
   launchedAt: string | null;
   sourceTweetUrl?: string | null;
+  redacted?: boolean;
 }
 
 export interface TweetSignal {

@@ -1,13 +1,15 @@
 import { create } from 'zustand';
-import type { AppMode, Plan, Timeframe } from '../types';
+import type { AppMode, Timeframe } from '../types';
 
-export const LAYOUT_STORAGE_KEY = 'launchradar:layout:v4';
+// v7: replaced live-feed panel with signal-intel panel
+export const LAYOUT_STORAGE_KEY = 'launchradar:layout:v7';
 
 interface AppStore {
   filters: {
     chains: Set<string>;
     categories: Set<string>;
     timeframe: Timeframe;
+    minFollowers: number | null;
   };
   selectedLaunchId: string | null;
   drawerOpen: boolean;
@@ -15,13 +17,13 @@ interface AppStore {
   pendingIds: string[];
   highlightedLaunchIds: string[];
   mode: AppMode;
-  plan: Plan;
   connected: boolean;
   closedPanels: Set<string>;
   layoutVersion: number;
 
   toggleChain: (chain: string) => void;
   toggleCategory: (cat: string) => void;
+  setMinFollowers: (n: number | null) => void;
   setTimeframe: (t: Timeframe) => void;
   selectLaunch: (id: string) => void;
   openDrawer: (id: string) => void;
@@ -43,6 +45,7 @@ export const useAppStore = create<AppStore>((set) => ({
     chains: new Set<string>(),
     categories: new Set<string>(),
     timeframe: 'all',
+    minFollowers: null,
   },
   selectedLaunchId: null,
   drawerOpen: false,
@@ -50,7 +53,6 @@ export const useAppStore = create<AppStore>((set) => ({
   pendingIds: [],
   highlightedLaunchIds: [],
   mode: 'terminal',
-  plan: 'alpha',
   connected: false,
   closedPanels: new Set<string>(),
   layoutVersion: 0,
@@ -70,6 +72,9 @@ export const useAppStore = create<AppStore>((set) => ({
       else next.add(cat);
       return { filters: { ...s.filters, categories: next } };
     }),
+
+  setMinFollowers: (n) =>
+    set((s) => ({ filters: { ...s.filters, minFollowers: n } })),
 
   setTimeframe: (t) =>
     set((s) => ({ filters: { ...s.filters, timeframe: t } })),
