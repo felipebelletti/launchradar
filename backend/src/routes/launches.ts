@@ -325,10 +325,16 @@ function registerLaunchRoutesInner(app: FastifyInstance): void {
         prisma.launchRecord.count({ where }),
       ]);
 
+      // Strip internal-only source types from user-facing responses
+      const sanitized = launches.map((l) => ({
+        ...l,
+        sources: l.sources.filter((s) => s.type !== 'ALPHAGATE'),
+      }));
+
       const totalPages = Math.ceil(total / limitNum);
 
       return reply.status(200).send({
-        data: launches,
+        data: sanitized,
         pagination: {
           page: pageNum,
           limit: limitNum,
@@ -438,8 +444,13 @@ function registerLaunchRoutesInner(app: FastifyInstance): void {
 
       const sourceTweetUrl = await getPrimarySignalTweetUrlForLaunch(launch.id);
 
+      // Strip internal-only source types from user-facing responses
       return reply.status(200).send({
-        data: { ...launch, sourceTweetUrl },
+        data: {
+          ...launch,
+          sources: launch.sources.filter((s) => s.type !== 'ALPHAGATE'),
+          sourceTweetUrl,
+        },
       });
     }
   );

@@ -114,6 +114,7 @@ enum SourceType {
   WEBSITE
   MANUAL
   IMAGE_OCR
+  ALPHAGATE
 }
 
 enum RuleSource {

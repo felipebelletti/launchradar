@@ -42,6 +42,10 @@ const configSchema = z.object({
   // Trial
   TRIAL_DURATION_DAYS: z.coerce.number().default(3),
   TRIAL_PLAN: z.enum(['FREE', 'SCOUT', 'ALPHA', 'PRO']).default('ALPHA'),
+
+  // AlphaGate (optional — integration only runs if both are set)
+  ALPHAGATE_COOKIE_NAME: z.string().default(''),
+  ALPHAGATE_COOKIE_VALUE: z.string().default(''),
 });
 
 const parsed = configSchema.safeParse(process.env);

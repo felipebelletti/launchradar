@@ -21,8 +21,11 @@ import { startAccountPollWorker } from './workers/account-poll.worker.js';
 import { startCronWorker } from './workers/cron.worker.js';
 import { scheduleCronJobs } from './queues/cron.queue.js';
 import { warmupTesseract } from './ocr/image-ocr.js';
+import { startAlphaGateStream, type AlphaGateStreamManager } from './services/alphagate.service.js';
+import { processAlphaGateProject } from './services/alphagate-ingest.service.js';
 
 const streamClient = new TwitterStreamClient();
+let alphaGateStream: AlphaGateStreamManager | null = null;
 
 async function bootstrap(): Promise<void> {
   const app = Fastify({
@@ -105,6 +108,12 @@ async function bootstrap(): Promise<void> {
 
   streamClient.connect();
 
+  // Start AlphaGate real-time stream (opt-in: only if cookie is configured)
+  if (config.ALPHAGATE_COOKIE_NAME && config.ALPHAGATE_COOKIE_VALUE) {
+    alphaGateStream = startAlphaGateStream(processAlphaGateProject);
+    log.info('AlphaGate stream started');
+  }
+
   await app.listen({ port: config.PORT, host: '0.0.0.0' });
   log.info('LaunchRadar backend listening', { port: config.PORT });
 }
@@ -112,12 +121,14 @@ async function bootstrap(): Promise<void> {
 process.on('SIGTERM', async () => {
   log.info('SIGTERM received — shutting down gracefully');
   streamClient.close();
+  alphaGateStream?.stop();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   log.info('SIGINT received — shutting down gracefully');
   streamClient.close();
+  alphaGateStream?.stop();
   process.exit(0);
 });
 

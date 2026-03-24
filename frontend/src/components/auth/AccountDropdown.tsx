@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, CreditCard, Monitor, Sparkles, LogOut } from 'lucide-react';
+import { User, CreditCard, Monitor, Sparkles, LogOut, Shield } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { usePlan } from '../../hooks/usePlan';
 import { useWatchlistStore } from '../../store/watchlist.store';
@@ -100,9 +100,10 @@ function nextPlan(current: Plan): Plan {
 interface AccountDropdownProps {
   onClose: () => void;
   onNavigate: (path: string) => void;
+  onOpenAdmin?: () => void;
 }
 
-export function AccountDropdown({ onClose, onNavigate }: AccountDropdownProps) {
+export function AccountDropdown({ onClose, onNavigate, onOpenAdmin }: AccountDropdownProps) {
   const { user, logout } = useAuth();
   const { plan, isTrialing, trialHoursRemaining, watchlistLimit } = usePlan();
   const watchedIds = useWatchlistStore((s) => s.watchedIds);
@@ -179,6 +180,11 @@ export function AccountDropdown({ onClose, onNavigate }: AccountDropdownProps) {
 
       {/* Nav links */}
       <div className="py-1">
+        {user?.isAdmin && onOpenAdmin && (
+          <DropdownLink onClick={() => { onClose(); onOpenAdmin(); }} icon={Shield}>
+            Admin Dashboard
+          </DropdownLink>
+        )}
         <DropdownLink onClick={() => handleNav('/account')} icon={User}>
           Account settings
         </DropdownLink>

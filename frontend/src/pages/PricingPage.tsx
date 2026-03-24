@@ -45,8 +45,7 @@ const PLANS: PlanTier[] = [
     name: 'SCOUT',
     price: '$19',
     period: '/mo',
-    cta: 'Start 3-day free trial',
-    trialNote: '3-day free trial \u00b7 No card required',
+    cta: 'Subscribe',
     features: [
       { label: 'Launch feed (real-time)', included: true },
       { label: 'Calendar: Next Hour + Today', included: true },

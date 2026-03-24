@@ -118,6 +118,7 @@ export function TopNav({ onOpenAdmin, onNavigate }: TopNavProps = {}) {
               <AccountDropdown
                 onClose={() => setShowUserMenu(false)}
                 onNavigate={(path) => onNavigate?.(path)}
+                onOpenAdmin={onOpenAdmin}
               />
             </>
           )}
