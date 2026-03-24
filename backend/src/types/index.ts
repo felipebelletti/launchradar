@@ -36,7 +36,8 @@ export interface ExtractionResult {
   launchDateRaw: ExtractionFieldResult;
   launchType: ExtractionFieldResult;
   chain: ExtractionFieldResult;
-  category: ExtractionFieldResult;
+  categories: { value: string[]; confidence: number };
+  primaryCategory: ExtractionFieldResult;
   website: ExtractionFieldResult;
   summary: ExtractionFieldResult;
 }

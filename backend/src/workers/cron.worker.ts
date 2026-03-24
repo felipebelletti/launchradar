@@ -52,6 +52,7 @@ export function startCronWorker(): Worker<CronJobData> {
     {
       connection: getBullMQConnection(),
       concurrency: 1,
+      lockDuration: 120_000,
     }
   );
 

@@ -3,6 +3,7 @@ import nock from 'nock';
 
 import '../helpers/ocr-mock.js';
 import {
+  mockStage1Yes,
   mockShillNo,
   mockExtractor,
   mockTimingFuture,
@@ -42,6 +43,7 @@ describe('Scenario 7: Reschedule Detection', () => {
     // === Tweet 1: "launching in 1 hour" ===
     const originalDate = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
+    mockStage1Yes();
     mockShillNo();
     mockTimingFuture();
 
@@ -80,6 +82,8 @@ describe('Scenario 7: Reschedule Detection', () => {
     // === Tweet 2: "launching in 3 hours" (2 hours later = reschedule) ===
     const rescheduledDate = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
 
+    mockStage1Yes();
+    mockShillNo();
     mockTimingFuture();
 
     const tweet2 = makeTierCPayload(HANDLE, {
@@ -145,6 +149,7 @@ describe('Scenario 7: Reschedule Detection', () => {
     // === Tweet 1: "launching in 1 hour" ===
     const targetDate = new Date(Date.now() + 60 * 60 * 1000);
 
+    mockStage1Yes();
     mockShillNo();
     mockTimingFuture();
 
@@ -180,6 +185,8 @@ describe('Scenario 7: Reschedule Detection', () => {
     // === Tweet 2: "launching in 40 minutes" — same target time (+5 min drift) ===
     const reannounceDate = new Date(targetDate.getTime() + 5 * 60 * 1000);
 
+    mockStage1Yes();
+    mockShillNo();
     mockTimingFuture();
 
     const tweet2 = makeTierCPayload(HANDLE2, {

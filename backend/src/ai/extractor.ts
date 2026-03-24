@@ -17,23 +17,31 @@ const USER_PROMPT_TEMPLATE = `Extract structured launch data from the following 
   "launchDateRaw": { "value": string | null, "confidence": number },
   "launchType": { "value": "presale" | "airdrop" | "mainnet" | "mint" | "testnet" | "tge" | null, "confidence": number },
   "chain": { "value": string | null, "confidence": number },
-  "category": { "value": "DeFi" | "NFT" | "L2" | "GameFi" | "Meme" | "Launchpad" | "Infrastructure" | "Other" | null, "confidence": number },
+  "categories": { "value": ["Launchpad" | "NFT" | "Airdrop" | "Meme" | "GameFi" | "Celebrity" | "Utility" | "Other"], "confidence": number },
+  "primaryCategory": { "value": "Launchpad" | "NFT" | "Airdrop" | "Meme" | "GameFi" | "Celebrity" | "Utility" | "Other" | null, "confidence": number },
   "website": { "value": string | null, "confidence": number },
   "summary": { "value": string | null, "confidence": number }
 }
 
 Rules:
 - confidence is a float from 0 to 1 (1 = certain, 0 = guessing)
-- launchDate and launchDateRaw are ONLY for a scheduled, teased, or upcoming go-live (future mint/listing/TGE/presale window you can honestly put on a calendar).
+- launchDate and launchDateRaw are ONLY for the actual project/token LAUNCH — when the token goes live, the mint opens, the mainnet starts, or the presale begins.
+- Do NOT use snapshot deadlines, airdrop eligibility cutoffs, whitelist closing times, or "drop your wallet" deadlines as launchDate. "Snapshot in 12 hours" is an eligibility deadline, NOT the launch date.
+- If the tweet says "launching soon" but only gives a specific time for a snapshot/eligibility window, set launchDate to null (the launch date is unknown, only the snapshot time is known).
 - If the text describes something ALREADY live, already listed, or past price action (e.g. "surged X%", "within 24 hours after launching", "gains", "JUST IN" price headlines), set launchDate and launchDateRaw to null with confidence 0. Do not treat performance time windows as launch dates.
 - launchDate value should be an ISO 8601 date string if parseable, otherwise null
-- The current date/time is {CURRENT_DATETIME}. Use this to resolve relative time expressions like "in 3 hours", "tomorrow", "next week", "tonight" into absolute ISO 8601 timestamps
+- The tweet was posted at {CURRENT_DATETIME}. Use this as the reference date/time to resolve relative time expressions like "in 3 hours", "tomorrow", "next week", "tonight", "at 5 PM UTC" into absolute ISO 8601 timestamps. Do NOT use the current wall-clock time — always anchor to the tweet's posted date
 - launchDateRaw is the raw date text from the content (e.g. "end of March", "Q2 2025") — not phrases like "within 24 hours" when they refer to how long ago a pump happened
 - ticker should be uppercase, without the $ prefix
 - If a field cannot be determined, set value to null and confidence to 0
 - website should be a real project domain (e.g. example.com). Never x.com or twitter.com as the project site. If the only link is t.co/..., output that URL (it is resolved server-side). If there is no usable link, use null
 - For summary, write a 1-2 sentence description of the project and its launch
-- Use category "Launchpad" when the project is a launch venue, IDO/ICO platform, token launch host, or pump-style launch surface (the product is helping others launch tokens), not for a typical protocol that merely has a scheduled token launch
+- categories should contain 1-3 applicable categories from the allowed list. A project can belong to multiple categories (e.g. an airdrop of a meme token is ["Airdrop", "Meme"])
+- primaryCategory is the single most defining category and must also appear in categories
+- Use "Launchpad" when the project is a launch venue, IDO/ICO platform, token launch host, or pump-style launch surface (the product is helping others launch tokens), not for a typical protocol that merely has a scheduled token launch
+- Use "Airdrop" when the tweet is primarily about an airdrop distribution, token claim, or free token drop
+- Use "Utility" when the project provides a real-world tool or service (e.g. AI-powered dev tools, analytics platforms, payment infrastructure) and does not fit better into another specific category. It is NOT a meme coin — it has tangible functionality behind the token
+- Use "Celebrity" ONLY when a celebrity (someone famous outside crypto, e.g. Elon Musk, Snoop Dogg, Trump) has actively endorsed, created, or officially partnered with the project. Do NOT use "Celebrity" just because the project's account replies to, mentions, or tags celebrities — that is engagement farming, not a celebrity association
 
 Content to analyze:
 ---
@@ -48,7 +56,8 @@ function buildPrompt(
   tweetText: string,
   authorBio: string,
   ocrText: string,
-  websiteContent?: string
+  websiteContent?: string,
+  tweetCreatedAt?: Date
 ): string {
   const ocrSection = ocrText
     ? `Image text extracted via OCR:\n${ocrText}\n---`
@@ -62,7 +71,7 @@ function buildPrompt(
     .replace('{AUTHOR_BIO}', authorBio || 'N/A')
     .replace('{OCR_SECTION}', ocrSection)
     .replace('{WEBSITE_SECTION}', websiteSection)
-    .replace('{CURRENT_DATETIME}', new Date().toISOString());
+    .replace('{CURRENT_DATETIME}', (tweetCreatedAt ?? new Date()).toISOString());
 }
 
 function parseExtractionResponse(raw: string): ExtractionResult {
@@ -88,6 +97,26 @@ function parseExtractionResponse(raw: string): ExtractionResult {
     return { value: null, confidence: 0 };
   }
 
+  function getArrayField(key: string): { value: string[]; confidence: number } {
+    const field = obj[key];
+    if (typeof field === 'object' && field !== null) {
+      const f = field as Record<string, unknown>;
+      let val: string[];
+      if (Array.isArray(f['value'])) {
+        val = f['value'].filter((v): v is string => typeof v === 'string');
+      } else if (typeof f['value'] === 'string') {
+        val = [f['value']];
+      } else {
+        val = [];
+      }
+      return {
+        value: val,
+        confidence: typeof f['confidence'] === 'number' ? f['confidence'] : 0,
+      };
+    }
+    return { value: [], confidence: 0 };
+  }
+
   return {
     projectName: getField('projectName'),
     ticker: getField('ticker'),
@@ -95,7 +124,8 @@ function parseExtractionResponse(raw: string): ExtractionResult {
     launchDateRaw: getField('launchDateRaw'),
     launchType: getField('launchType'),
     chain: getField('chain'),
-    category: getField('category'),
+    categories: getArrayField('categories'),
+    primaryCategory: getField('primaryCategory'),
     website: getField('website'),
     summary: getField('summary'),
   };
@@ -105,9 +135,10 @@ export async function extractLaunchData(
   tweetText: string,
   authorBio: string,
   ocrText: string,
-  websiteContent?: string
+  websiteContent?: string,
+  tweetCreatedAt?: Date
 ): Promise<ExtractionResult> {
-  const prompt = buildPrompt(tweetText, authorBio, ocrText, websiteContent);
+  const prompt = buildPrompt(tweetText, authorBio, ocrText, websiteContent, tweetCreatedAt);
 
   const start = Date.now();
   log.info('xAI API call', {
@@ -151,7 +182,8 @@ export async function extractLaunchData(
       launchDateRaw: emptyField,
       launchType: emptyField,
       chain: emptyField,
-      category: emptyField,
+      categories: { value: [], confidence: 0 },
+      primaryCategory: emptyField,
       website: emptyField,
       summary: emptyField,
     };

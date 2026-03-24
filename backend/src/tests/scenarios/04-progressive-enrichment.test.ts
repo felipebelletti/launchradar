@@ -100,6 +100,8 @@ describe('Scenario 4: Progressive Enrichment', () => {
     expect(record.launchDate).toBeNull();
 
     // === Tweet 2 (Tier C — follow-up from monitored account) ===
+    mockStage1Yes();
+    mockShillNo();
     mockTimingFuture();
     mockExtractor({
       projectName: 'Solrise Finance',
@@ -143,6 +145,8 @@ describe('Scenario 4: Progressive Enrichment', () => {
     expect(signals).toHaveLength(2);
 
     // === Tweet 3 (Tier C — launch day confirmation) ===
+    mockStage1Yes();
+    mockShillNo();
     mockTimingFuture();
     mockExtractor({
       projectName: 'Solrise Finance',

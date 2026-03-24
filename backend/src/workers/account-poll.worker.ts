@@ -88,7 +88,7 @@ export function startAccountPollWorker(): Worker<PollAccountJob> {
         await ingestTweet(tweetData, 'TIER_C');
       }
     },
-    { connection: getBullMQConnection(), concurrency: 5 }
+    { connection: getBullMQConnection(), concurrency: 5, lockDuration: 60_000 }
   );
 
   worker.on('failed', (job, err) => {

@@ -1,11 +1,72 @@
 import type { FastifyInstance } from 'fastify';
 import { redis } from '../redis.js';
 import { createChildLogger } from '../logger.js';
+import { prisma } from '../db/client.js';
+import { hasPlan } from '../services/plan.service.js';
 
 const log = createChildLogger('sse');
 
+const FREE_VISIBLE_STATUSES = new Set(['VERIFIED', 'LIVE']);
+
+interface LaunchPayload {
+  id: string;
+  status: string;
+  projectName: string;
+  chain: string | null;
+  createdAt: string;
+  updatedAt: string;
+  confidenceScore: number;
+  ruleSource: string;
+  [key: string]: unknown;
+}
+
+function redactPayload(p: LaunchPayload): Record<string, unknown> {
+  return {
+    id: p.id,
+    status: p.status,
+    chain: p.chain,
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
+    confidenceScore: p.confidenceScore,
+    ruleSource: p.ruleSource,
+    redacted: true,
+    projectName: '█'.repeat((p.projectName ?? '').length || 6),
+    ticker: null,
+    launchDate: null,
+    launchDateRaw: null,
+    launchDateConfidence: null,
+    previousLaunchDate: null,
+    rescheduledAt: null,
+    launchType: null,
+    categories: [],
+    primaryCategory: null,
+    website: null,
+    whitepaper: null,
+    summary: null,
+    twitterHandle: null,
+    twitterFollowers: null,
+    isVerifiedAccount: false,
+    sources: [],
+    tweets: [],
+    launchedAt: null,
+    sourceTweetUrl: null,
+  };
+}
+
 export async function eventsRoutes(app: FastifyInstance): Promise<void> {
   app.get('/events', async (request, reply) => {
+    // Resolve plan once at connection time
+    let isPaid = false;
+    if (request.user) {
+      const userWithSub = await prisma.user.findUnique({
+        where: { id: request.user.id },
+        include: { subscription: true },
+      });
+      if (userWithSub) {
+        isPaid = hasPlan(userWithSub, 'SCOUT');
+      }
+    }
+
     // Disable Fastify's default response handling — we're streaming manually
     reply.hijack();
 
@@ -32,6 +93,17 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
 
     subscriber.on('message', (_channel: string, message: string) => {
       try {
+        if (!isPaid) {
+          const event = JSON.parse(message) as { type: string; payload: LaunchPayload };
+          if (
+            (event.type === 'launch:new' || event.type === 'launch:updated') &&
+            !FREE_VISIBLE_STATUSES.has(event.payload.status)
+          ) {
+            const redacted = { type: event.type, payload: redactPayload(event.payload) };
+            reply.raw.write(`data: ${JSON.stringify(redacted)}\n\n`);
+            return;
+          }
+        }
         // SSE format: each event is "data: <json>\n\n"
         reply.raw.write(`data: ${message}\n\n`);
       } catch (err) {

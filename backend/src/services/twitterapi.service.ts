@@ -48,7 +48,8 @@ export interface AdvancedSearchResult {
     retweetCount: number;
     photos?: Array<{ url: string }>;
   }>;
-  nextCursor?: string;
+  has_next_page?: boolean;
+  next_cursor?: string;
 }
 
 interface AddRuleApiResponse {
@@ -159,22 +160,22 @@ const STATIC_RULES = [
   {
     label: 'chain_sol',
     filter:
-      '("launching on solana" OR "launching on #solana" OR "launching on sol" OR "launching on #sol" OR "built on solana" OR "built on #solana") -is:retweet lang:en',
+      '("launching on solana" OR "launching on #solana" OR "launching on sol" OR "launching on #sol" OR "built on solana" OR "built on #solana" OR "experiment on @solana" OR "experiment on #solana" OR "experiment on sol" OR "experiment on #sol") -is:retweet lang:en',
   },
   {
     label: 'chain_eth',
     filter:
-      '("launching on ethereum" OR "launching on #ethereum" OR "built on ethereum" OR "built on #ethereum" OR "launching on base" OR "launching on #base" OR "built on base" OR "built on #base") -is:retweet lang:en',
+      '("launching on ethereum" OR "launching on #ethereum" OR "built on ethereum" OR "built on #ethereum" OR "launching on base" OR "launching on #base" OR "built on base" OR "built on #base" OR "experiment on @ethereum" OR "experiment on #ethereum" OR "experiment on eth" OR "experiment on #eth" OR "experiment on base" OR "experiment on #base" OR "experiment on @base") -is:retweet lang:en',
   },
   {
     label: 'chain_bsc',
     filter:
-      '("launching on binance" OR "launching on #binance" OR "launching on bsc" OR "launching on #bsc" OR "built on binance" OR "built on bsc" OR "built on #binance" OR "built on #bsc") -is:retweet lang:en',
+      '("launching on binance" OR "launching on #binance" OR "launching on bsc" OR "launching on #bsc" OR "built on binance" OR "built on bsc" OR "built on #binance" OR "built on #bsc" OR "experiment on @binance" OR "experiment on #binance" OR "experiment on bsc" OR "experiment on #bsc") -is:retweet lang:en',
   },
   {
     label: 'chain_pump',
     filter:
-      '("launching on pump.fun" OR "launching on pumpfun") -is:retweet lang:en',
+      '("launching on pump.fun" OR "launching on pumpfun" OR "experiment on @pump.fun" OR "experiment on #pump.fun" OR "experiment on pump.fun") -is:retweet lang:en',
   },
   {
     label: 'time_signals',
@@ -322,4 +323,27 @@ export async function advancedSearch(
   });
 
   return handleResponse<AdvancedSearchResult>(res);
+}
+
+export async function getTweetsByIds(
+  tweetIds: string[]
+): Promise<AdvancedSearchResult['tweets']> {
+  if (tweetIds.length === 0) {
+    return [];
+  }
+  const url = new URL(`${BASE_URL}/twitter/tweets`);
+  url.searchParams.set('tweet_ids', tweetIds.join(','));
+  const res = await fetch(url.toString(), {
+    method: 'GET',
+    headers: headers(),
+  });
+  const data = await handleResponse<{
+    tweets?: AdvancedSearchResult['tweets'];
+    status: string;
+    message?: string;
+  }>(res);
+  if (data.status === 'error') {
+    throw new Error(data.message ?? 'get tweets by ids failed');
+  }
+  return data.tweets ?? [];
 }

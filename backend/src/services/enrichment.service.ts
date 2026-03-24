@@ -28,6 +28,16 @@ function withoutRecapLaunchTiming(
 const log = createChildLogger('enrichment');
 
 /**
+ * Convert a twitter handle into a readable project name fallback.
+ * e.g. "aquafi_official" → "Aquafi Official"
+ */
+function handleToReadableName(handle: string): string {
+  return handle
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
  * Calculate confidence score based on available data.
  * See CLAUDE.md for the scoring formula.
  */
@@ -118,7 +128,11 @@ async function applyExtractionResult(
   isTierA: boolean,
   triggerTweetId?: string
 ): Promise<{ rescheduled: boolean }> {
-  const projectName = extraction.projectName.value;
+  // Fallback: if extraction didn't produce a projectName (null or very low confidence),
+  // derive a readable name from the author handle so the record isn't nameless.
+  // Confidence 0.25 ensures any real extraction in the future will override it.
+  let projectName = extraction.projectName.value;
+  let projectNameConfidence = extraction.projectName.confidence;
   const ticker = extraction.ticker.value;
   const chain = extraction.chain.value;
   const website =
@@ -126,7 +140,9 @@ async function applyExtractionResult(
     (await expandLaunchWebsite(profileData.website)) ??
     null;
   const launchType = extraction.launchType.value;
-  const category = extraction.category.value;
+  const categories = extraction.categories.value;
+  const primaryCategory = extraction.primaryCategory.value;
+  const summary = extraction.summary.value;
   const launchDateRaw = extraction.launchDateRaw.value;
   const launchDateStr = extraction.launchDate.value;
   const launchDateConfidence = extraction.launchDate.confidence;
@@ -137,6 +153,40 @@ async function applyExtractionResult(
     if (!isNaN(parsed.getTime())) {
       launchDate = parsed;
     }
+  }
+
+  // Guard: if extraction returned essentially nothing (no project name, no chain, no date),
+  // don't overwrite a record that already has higher confidence — the extractor likely failed
+  // or the trigger tweet was a vague follow-up. Keep existing data.
+  const before = await prisma.launchRecord.findUniqueOrThrow({
+    where: { id: launchRecordId },
+  });
+
+  // Apply handle-based projectName fallback when extraction yielded nothing useful.
+  // Only if the record doesn't already have a real (non-handle-placeholder) name.
+  const hasRealProjectNameAlready =
+    before.projectName && before.projectName !== before.twitterHandle;
+  if (
+    !hasRealProjectNameAlready &&
+    (!projectName || projectNameConfidence < 0.4) &&
+    before.twitterHandle
+  ) {
+    projectName = handleToReadableName(before.twitterHandle);
+    projectNameConfidence = 0.25;
+    log.info('Using handle-based projectName fallback', {
+      launchRecordId,
+      fallbackName: projectName,
+    });
+  }
+
+  const extractionIsEmpty = !projectName && !chain && !launchDate && !launchType;
+  if (extractionIsEmpty && before.confidenceScore > 0.3) {
+    log.info('Skipping degraded extraction — would lower confidence on enriched record', {
+      launchRecordId,
+      existingConfidence: before.confidenceScore,
+      existingStatus: before.status,
+    });
+    return { rescheduled: false };
   }
 
   const confidenceScore = calculateConfidenceScore({
@@ -150,11 +200,13 @@ async function applyExtractionResult(
     isTierA,
   });
 
-  const newStatus = confidenceToStatus(confidenceScore);
+  // Guard: never lower confidence below the existing score. Enrichment should only improve.
+  const finalConfidence = Math.max(confidenceScore, before.confidenceScore);
+  const newStatus = confidenceToStatus(finalConfidence);
 
   log.info('Launch record confidence score', {
     launchRecordId,
-    confidenceScore,
+    confidenceScore: finalConfidence,
     newStatus,
     projectName,
     hasLaunchDate: !!launchDate,
@@ -162,10 +214,25 @@ async function applyExtractionResult(
     hasWebsite: !!website,
   });
 
-  // Fetch the record before update to detect meaningful changes
-  const before = await prisma.launchRecord.findUniqueOrThrow({
-    where: { id: launchRecordId },
-  });
+  // Guard: don't overwrite a high-confidence launch date with a lower-confidence one.
+  // This prevents "snapshot in 12 hours" (confidence ~0.6) from replacing
+  // "launching 24th March at 14:00 UTC" (confidence ~0.9).
+  const existingDateConfidence = before.launchDateConfidence ?? 0;
+  if (
+    launchDate &&
+    before.launchDate &&
+    launchDateConfidence < existingDateConfidence &&
+    existingDateConfidence >= 0.7
+  ) {
+    log.info('Skipping lower-confidence date overwrite', {
+      launchRecordId,
+      existingDate: before.launchDate.toISOString(),
+      existingConfidence: existingDateConfidence,
+      newDate: launchDate.toISOString(),
+      newConfidence: launchDateConfidence,
+    });
+    launchDate = null;
+  }
 
   // Detect reschedule: new date differs from existing date by more than 30 minutes.
   // This filters out "countdown reannouncements" where e.g. "launching in 1h" at 13:00
@@ -191,19 +258,30 @@ async function applyExtractionResult(
     });
   }
 
+  // Guard: don't overwrite projectName/ticker if the record already has real values
+  // (i.e. not the twitterHandle placeholder or handle-derived fallback). This prevents
+  // unrelated follow-up tweets from corrupting the record with a different project's name.
+  const handleFallbackName = before.twitterHandle ? handleToReadableName(before.twitterHandle) : null;
+  const hasRealProjectName = before.projectName
+    && before.projectName !== before.twitterHandle
+    && before.projectName !== handleFallbackName;
+  const hasRealTicker = !!before.ticker;
+
   const updated = await prisma.launchRecord.update({
     where: { id: launchRecordId },
     data: {
-      projectName: projectName ?? undefined,
-      ticker: ticker ?? undefined,
+      projectName: hasRealProjectName ? undefined : (projectName ?? undefined),
+      ticker: hasRealTicker ? undefined : (ticker ?? undefined),
       chain: chain ?? undefined,
       website: website ?? undefined,
       launchType: launchType ?? undefined,
-      category: category ?? undefined,
+      categories: categories.length > 0 ? categories : undefined,
+      primaryCategory: primaryCategory ?? undefined,
+      summary: summary ?? undefined,
       launchDateRaw: launchDateRaw ?? undefined,
       launchDate: launchDate ?? undefined,
       launchDateConfidence: launchDateConfidence > 0 ? launchDateConfidence : undefined,
-      confidenceScore,
+      confidenceScore: finalConfidence,
       status: newStatus,
       ...rescheduleData,
     },
@@ -290,25 +368,43 @@ export async function enrichLaunch(
       });
     }
 
-    const needsExtraction = !record.projectName || record.projectName === record.twitterHandle
-      || !record.chain || !record.category;
+    const liveHandleFallback = record.twitterHandle ? handleToReadableName(record.twitterHandle) : null;
+    const needsExtraction = !record.projectName
+      || record.projectName === record.twitterHandle
+      || record.projectName === liveHandleFallback
+      || !record.chain || record.categories.length === 0;
 
     const extractedData: Record<string, string> = {};
-
+    let extractedCategories: string[] | undefined;
     if (needsExtraction) {
-      const extraction = await extractLaunchData(tweetText, profileData.bio, ocrText);
+      const extraction = await extractLaunchData(tweetText, profileData.bio, ocrText, undefined, resolvedTweet?.createdAt ?? undefined);
       const candidates: Record<string, string | null | undefined> = {
-        projectName: extraction.projectName.value,
+        projectName: extraction.projectName.value && extraction.projectName.confidence >= 0.4
+          ? extraction.projectName.value
+          : null,
         chain: extraction.chain.value,
-        category: extraction.category.value,
+        primaryCategory: extraction.primaryCategory.value,
         launchType: extraction.launchType.value,
         ticker: extraction.ticker.value,
         website:
           (await expandLaunchWebsite(extraction.website.value)) ??
           (await expandLaunchWebsite(profileData.website)),
       };
+
+      // Apply handle-based fallback if extraction didn't produce a usable projectName
+      // and the record doesn't already have a real name
+      const hasRealName = record.projectName
+        && record.projectName !== record.twitterHandle
+        && record.projectName !== liveHandleFallback;
+      if (!candidates.projectName && !hasRealName && record.twitterHandle) {
+        candidates.projectName = handleToReadableName(record.twitterHandle);
+      }
+
       for (const [key, val] of Object.entries(candidates)) {
         if (val) extractedData[key] = val;
+      }
+      if (extraction.categories.value.length > 0) {
+        extractedCategories = extraction.categories.value;
       }
     }
 
@@ -320,6 +416,7 @@ export async function enrichLaunch(
       where: { id: launchRecordId },
       data: {
         ...extractedData,
+        ...(extractedCategories ? { categories: extractedCategories } : {}),
         status: 'LIVE',
         launchedAt: record.launchedAt ?? new Date(),
         confidenceScore: Math.max(record.confidenceScore, 0.75),
@@ -348,7 +445,7 @@ export async function enrichLaunch(
 
   // Step 3: Run Stage 3 extractor (future / unknown timing — normal flow)
   const extraction = withoutRecapLaunchTiming(
-    await extractLaunchData(tweetText, profileData.bio, ocrText),
+    await extractLaunchData(tweetText, profileData.bio, ocrText, undefined, resolvedTweet?.createdAt ?? undefined),
     tweetText,
     ocrText,
   );

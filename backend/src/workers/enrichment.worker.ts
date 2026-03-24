@@ -16,6 +16,7 @@ export function startEnrichmentWorker(): Worker<EnrichmentJobData> {
     {
       connection: getBullMQConnection(),
       concurrency: 5,
+      lockDuration: 120_000,
     }
   );
 

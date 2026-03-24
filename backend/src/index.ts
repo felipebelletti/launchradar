@@ -4,9 +4,15 @@ import { createChildLogger } from './logger.js';
 const log = createChildLogger('bootstrap');
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
+import cookie from '@fastify/cookie';
 import { config } from './config.js';
 import { registerLaunchRoutes } from './routes/launches.js';
 import { eventsRoutes } from './routes/events.js';
+import { authRoutes } from './routes/auth.js';
+import { adminRoutes } from './routes/admin.js';
+import { settingsRoutes } from './routes/settings.js';
+import billingRoutes from './routes/billing.js';
+import { requireAuth } from './middleware/requireAuth.js';
 
 import { TwitterStreamClient } from './services/twitter-stream.service.js';
 import { registerStaticRules } from './services/twitterapi.service.js';
@@ -25,14 +31,47 @@ async function bootstrap(): Promise<void> {
     },
   });
 
+  // Add raw body content type parser for Stripe webhook verification
+  app.addContentTypeParser(
+    'application/json',
+    { parseAs: 'buffer' },
+    (req, body, done) => {
+      // Store raw body for Stripe webhook signature verification
+      (req as unknown as { rawBody: Buffer }).rawBody = body as Buffer;
+      try {
+        const json = JSON.parse((body as Buffer).toString());
+        done(null, json);
+      } catch (err) {
+        done(err as Error, undefined);
+      }
+    },
+  );
+
   await app.register(helmet);
   await app.register(rateLimit, {
     max: 200,
     timeWindow: '1 minute',
   });
+  await app.register(cookie, {
+    secret: config.SESSION_SECRET,
+  });
 
-  await registerLaunchRoutes(app);
-  await app.register(eventsRoutes);
+  // Auth routes (no auth required)
+  await app.register(authRoutes);
+
+  // Protected routes — require auth
+  await registerLaunchRoutes(app, requireAuth);
+  await app.register(async (scope) => {
+    scope.addHook('preHandler', requireAuth);
+    await scope.register(eventsRoutes);
+    await scope.register(settingsRoutes);
+  });
+
+  // Billing routes (mix of auth-required and webhook)
+  await app.register(billingRoutes);
+
+  // Admin routes (require admin)
+  await app.register(adminRoutes);
 
   // Health check endpoint
   app.get('/health', async (_request, reply) => {

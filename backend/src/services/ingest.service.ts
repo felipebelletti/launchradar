@@ -100,33 +100,39 @@ export async function ingestTweet(
     return;
   }
 
-  // Step 2: AI filters (Tier B only)
+  // Step 2: AI filters — Stage 1 (launch check) runs on ALL tiers; Stage 2 (crypto) on Tier B only
+
+  // Stage 1: Is this a launch announcement? (all tiers)
+  const isLaunch = await isLaunchAnnouncement(tweet.text, ocrText);
+  if (!isLaunch) {
+    log.info('Tweet ranking: failed Stage 1 (not a launch)', {
+      ...tweetLogFields(tweet.id, tweet.authorHandle),
+      authorHandle: tweet.authorHandle,
+      stage: 'stage1_launch_filter',
+      result: 'discard',
+      tweetText: tweet.text,
+      tier,
+    });
+    await redis.sadd(DISCARD_KEY, tweet.id);
+    await redis.expire(DISCARD_KEY, 60 * 60 * 24 * 3);
+    return;
+  }
+
+  // Shill detection: runs on ALL tiers
+  const isShill = await isShillTweet(tweet.text, ocrText, tweet.authorHandle, tweet.authorBio, tweet.authorFollowers);
+  if (isShill) {
+    log.info('Shill tweet discarded', {
+      ...tweetLogFields(tweet.id, tweet.authorHandle),
+      authorHandle: tweet.authorHandle,
+      tier,
+    });
+    await redis.sadd(DISCARD_KEY, tweet.id);
+    await redis.expire(DISCARD_KEY, 60 * 60 * 24 * 3);
+    return;
+  }
+
+  // Stage 2: Crypto relevance (Tier B only — Tier A is chain-qualified, Tier C is already confirmed)
   if (tier === RuleSource.TIER_B) {
-    const isLaunch = await isLaunchAnnouncement(tweet.text, ocrText);
-    if (!isLaunch) {
-      log.info('Tweet ranking: failed Stage 1 (not a launch)', {
-        ...tweetLogFields(tweet.id, tweet.authorHandle),
-        authorHandle: tweet.authorHandle,
-        stage: 'stage1_launch_filter',
-        result: 'discard',
-        tweetText: tweet.text,
-      });
-      await redis.sadd(DISCARD_KEY, tweet.id);
-      await redis.expire(DISCARD_KEY, 60 * 60 * 24 * 3); // 3 day TTL
-      return;
-    }
-
-    const isShill = await isShillTweet(tweet.text, ocrText);
-    if (isShill) {
-      log.info('Shill tweet discarded', {
-        ...tweetLogFields(tweet.id, tweet.authorHandle),
-        authorHandle: tweet.authorHandle,
-      });
-      await redis.sadd(DISCARD_KEY, tweet.id);
-      await redis.expire(DISCARD_KEY, 60 * 60 * 24 * 3);
-      return;
-    }
-
     const isCrypto = await isCryptoRelated(tweet.text, tweet.authorBio, ocrText);
     if (!isCrypto) {
       log.info('Tweet ranking: failed Stage 2 (not crypto)', {
@@ -137,49 +143,20 @@ export async function ingestTweet(
         tweetText: tweet.text,
       });
       await redis.sadd(DISCARD_KEY, tweet.id);
-      await redis.expire(DISCARD_KEY, 60 * 60 * 24 * 3); // 3 day TTL
-      return;
-    }
-
-    log.info('Tweet classified as crypto launch', {
-      ...tweetLogFields(tweet.id, tweet.authorHandle),
-      authorHandle: tweet.authorHandle,
-      tweetText: tweet.text,
-      stage1: 'pass',
-      stage2: 'pass',
-      tier: 'TIER_B',
-    });
-  } else if (tier === RuleSource.TIER_A) {
-    const isShill = await isShillTweet(tweet.text, ocrText);
-    if (isShill) {
-      log.info('Shill tweet discarded (Tier A)', {
-        ...tweetLogFields(tweet.id, tweet.authorHandle),
-        authorHandle: tweet.authorHandle,
-      });
-      await redis.sadd(DISCARD_KEY, tweet.id);
       await redis.expire(DISCARD_KEY, 60 * 60 * 24 * 3);
       return;
     }
-
-    log.info('Tweet classified as crypto launch', {
-      ...tweetLogFields(tweet.id, tweet.authorHandle),
-      authorHandle: tweet.authorHandle,
-      tweetText: tweet.text,
-      stage1: 'skip (chain-qualified)',
-      stage2: 'skip (chain-qualified)',
-      tier: 'TIER_A',
-      chain: inferChainFromLabel(ruleLabel),
-    });
-  } else {
-    log.info('Tweet classified as crypto launch', {
-      ...tweetLogFields(tweet.id, tweet.authorHandle),
-      authorHandle: tweet.authorHandle,
-      tweetText: tweet.text,
-      stage1: 'skip (monitored account)',
-      stage2: 'skip (monitored account)',
-      tier: 'TIER_C',
-    });
   }
+
+  log.info('Tweet classified as crypto launch', {
+    ...tweetLogFields(tweet.id, tweet.authorHandle),
+    authorHandle: tweet.authorHandle,
+    tweetText: tweet.text,
+    stage1: 'pass',
+    stage2: tier === RuleSource.TIER_B ? 'pass' : 'skip (crypto-confirmed)',
+    tier,
+    ...(tier === RuleSource.TIER_A ? { chain: inferChainFromLabel(ruleLabel) } : {}),
+  });
 
   // Step 2b: Classify launch timing (future vs live) — runs after crypto filter passes
   const timing: LaunchTiming = await classifyLaunchTiming(tweet.text, ocrText);
@@ -199,14 +176,27 @@ export async function ingestTweet(
   const existingRecordIdByHash = await redis.get(hashKey);
 
   if (existingRecordIdByHash) {
-    // Verify the referenced record still exists (it may have been deleted/merged)
+    // Check if the original tweet was from a different author — that's a shill campaign
+    const originalAuthor = await redis.get(`tweet:content_hash_author:${contentHash}`);
+    if (originalAuthor && originalAuthor !== tweet.authorHandle) {
+      log.info('Cross-author duplicate content detected, discarding as coordinated shill', {
+        ...tweetLogFields(tweet.id, tweet.authorHandle),
+        originalAuthor,
+        existingRecordId: existingRecordIdByHash,
+      });
+      await redis.sadd(DISCARD_KEY, tweet.id);
+      await redis.expire(DISCARD_KEY, 60 * 60 * 24 * 3);
+      return;
+    }
+
+    // Same author, same content — merge into existing record
     const hashTarget = await prisma.launchRecord.findUnique({
       where: { id: existingRecordIdByHash },
       select: { id: true },
     });
 
     if (hashTarget) {
-      log.debug('Duplicate tweet content, merging signal', {
+      log.debug('Duplicate tweet content from same author, merging signal', {
         ...tweetLogFields(tweet.id, tweet.authorHandle),
         existingRecordId: existingRecordIdByHash,
       });
@@ -283,6 +273,7 @@ export async function ingestTweet(
 
     // Store content hash pointing to this record (7-day TTL)
     await redis.set(hashKey, launchRecordId, 'EX', 60 * 60 * 24 * 7);
+    await redis.set(`tweet:content_hash_author:${contentHash}`, tweet.authorHandle, 'EX', 60 * 60 * 24 * 7);
 
     log.info('Tweet merged into existing record', {
       ...tweetLogFields(tweet.id, tweet.authorHandle),
@@ -336,6 +327,7 @@ export async function ingestTweet(
 
     // Store content hash pointing to this record (7-day TTL)
     await redis.set(hashKey, launchRecordId, 'EX', 60 * 60 * 24 * 7);
+    await redis.set(`tweet:content_hash_author:${contentHash}`, tweet.authorHandle, 'EX', 60 * 60 * 24 * 7);
 
     log.info('Created new stub LaunchRecord', {
       launchRecordId,

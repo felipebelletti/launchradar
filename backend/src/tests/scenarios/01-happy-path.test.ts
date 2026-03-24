@@ -48,7 +48,8 @@ describe('Scenario 1: Happy Path', () => {
     mockExtractor({
       projectName: 'AquaFi',
       chain: 'Solana',
-      category: 'DeFi',
+      categories: ['Meme'],
+      primaryCategory: 'Meme',
       launchDate: '2025-03-22T00:00:00Z',
       launchDateRaw: 'soon',
       launchType: 'presale',

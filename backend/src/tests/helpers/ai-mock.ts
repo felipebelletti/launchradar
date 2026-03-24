@@ -124,21 +124,23 @@ export function mockExtractor(fields: {
   launchDateRaw?: string;
   launchType?: string;
   chain?: string;
-  category?: string;
+  categories?: string[];
+  primaryCategory?: string;
   website?: string;
   summary?: string;
-  confidence?: Partial<Record<keyof ExtractionResult, number>>;
+  confidence?: Partial<Record<string, number>>;
 }): void {
   const conf = fields.confidence ?? {};
 
-  const result: Record<string, { value: string | null; confidence: number }> = {
+  const result: Record<string, { value: string | string[] | null; confidence: number }> = {
     projectName: { value: fields.projectName ?? null, confidence: conf.projectName ?? (fields.projectName ? 0.95 : 0) },
     ticker: { value: fields.ticker ?? null, confidence: conf.ticker ?? (fields.ticker ? 0.9 : 0) },
     launchDate: { value: fields.launchDate ?? null, confidence: conf.launchDate ?? (fields.launchDate ? 0.85 : 0) },
     launchDateRaw: { value: fields.launchDateRaw ?? null, confidence: conf.launchDateRaw ?? (fields.launchDateRaw ? 0.8 : 0) },
     launchType: { value: fields.launchType ?? null, confidence: conf.launchType ?? (fields.launchType ? 0.9 : 0) },
     chain: { value: fields.chain ?? null, confidence: conf.chain ?? (fields.chain ? 0.9 : 0) },
-    category: { value: fields.category ?? null, confidence: conf.category ?? (fields.category ? 0.85 : 0) },
+    categories: { value: fields.categories ?? [], confidence: conf.categories ?? (fields.categories?.length ? 0.85 : 0) },
+    primaryCategory: { value: fields.primaryCategory ?? null, confidence: conf.primaryCategory ?? (fields.primaryCategory ? 0.85 : 0) },
     website: { value: fields.website ?? null, confidence: conf.website ?? (fields.website ? 0.9 : 0) },
     summary: { value: fields.summary ?? null, confidence: conf.summary ?? (fields.summary ? 0.8 : 0) },
   };

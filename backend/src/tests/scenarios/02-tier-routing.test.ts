@@ -41,13 +41,15 @@ describe('Scenario 2: Tier A vs Tier B Routing', () => {
     await enrichmentWorker.close();
   });
 
-  it('2a - Tier A skips AI filters, goes straight to extraction', async () => {
+  it('2a - Tier A runs Stage 1 + shill check, skips Stage 2', async () => {
+    mockStage1Yes();
     mockShillNo();
     mockTimingFuture();
     mockExtractor({
       projectName: 'DefiProjectXyz',
       chain: 'Solana',
-      category: 'DeFi',
+      categories: ['Meme'],
+      primaryCategory: 'Meme',
     });
 
     nock('https://api.twitterapi.io')
@@ -72,7 +74,9 @@ describe('Scenario 2: Tier A vs Tier B Routing', () => {
     await waitForQueueDrain([enrichmentQueue], 15000);
 
     const calls = getAiCallLog();
-    expect(calls.filter(c => c.userContent.includes('Does this tweet announce'))).toHaveLength(0);
+    // Stage 1 now runs on Tier A
+    expect(calls.filter(c => c.userContent.includes('announce, tease, or describe a specific crypto go-live event')).length).toBeGreaterThanOrEqual(1);
+    // Stage 2 still skipped for Tier A (chain-qualified = crypto-confirmed)
     expect(calls.filter(c => c.userContent.includes('Is this tweet related to a cryptocurrency'))).toHaveLength(0);
     expect(calls.filter(c => c.userContent.includes('Extract structured launch data')).length).toBeGreaterThanOrEqual(1);
 
@@ -112,7 +116,7 @@ describe('Scenario 2: Tier A vs Tier B Routing', () => {
     await waitForQueueDrain([enrichmentQueue], 15000);
 
     const calls = getAiCallLog();
-    expect(calls.filter(c => c.userContent.includes('Does this tweet primarily announce')).length).toBeGreaterThanOrEqual(1);
+    expect(calls.filter(c => c.userContent.includes('announce, tease, or describe a specific crypto go-live event')).length).toBeGreaterThanOrEqual(1);
     expect(calls.filter(c => c.userContent.includes('Is this tweet related to a cryptocurrency')).length).toBeGreaterThanOrEqual(1);
 
     const record = await findLaunchByHandle('crypto_launcher_b');

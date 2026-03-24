@@ -4,6 +4,7 @@ import { Worker } from 'bullmq';
 
 import '../helpers/ocr-mock.js';
 import {
+  mockStage1Yes,
   mockShillNo,
   mockExtractor,
   mockTimingFuture,
@@ -78,6 +79,7 @@ describe('Scenario 5: Disruption Detection', () => {
     const HANDLE = 'cancelvault_team';
 
     // === Tweet 1 (Tier A — initial detection) ===
+    mockStage1Yes();
     mockShillNo();
     mockTimingFuture();
     mockDisruptionNone();
@@ -88,7 +90,8 @@ describe('Scenario 5: Disruption Detection', () => {
       launchDateRaw: 'next Friday',
       launchType: 'mainnet',
       website: 'cancelvault.io',
-      category: 'DeFi',
+      categories: ['Meme'],
+      primaryCategory: 'Meme',
       confidence: {
         projectName: 0.95,
         chain: 0.95,
@@ -118,6 +121,8 @@ describe('Scenario 5: Disruption Detection', () => {
     expect(['CONFIRMED', 'VERIFIED', 'PARTIAL']).toContain(record.status);
 
     // === Tweet 2 (Tier C — cancellation signal: project abandoned) ===
+    mockStage1Yes();
+    mockShillNo();
     mockTimingFuture();
     mockDisruptionCancelled();
 
@@ -163,6 +168,7 @@ describe('Scenario 5: Disruption Detection', () => {
     const HANDLE = 'metavault_team';
 
     // === Tweet 1 (Tier A — initial detection) ===
+    mockStage1Yes();
     mockShillNo();
     mockTimingFuture();
     mockDisruptionNone();
@@ -173,7 +179,8 @@ describe('Scenario 5: Disruption Detection', () => {
       launchDateRaw: 'next Friday',
       launchType: 'mainnet',
       website: 'metavault.io',
-      category: 'DeFi',
+      categories: ['Meme'],
+      primaryCategory: 'Meme',
       confidence: {
         projectName: 0.95,
         chain: 0.95,
@@ -206,6 +213,8 @@ describe('Scenario 5: Disruption Detection', () => {
     const originalDate = record.launchDate;
 
     // === Tweet 2 (Tier C — postponement signal: delayed, not abandoned) ===
+    mockStage1Yes();
+    mockShillNo();
     mockTimingFuture();
     mockDisruptionPostponed();
 
@@ -273,6 +282,7 @@ describe('Scenario 5: Disruption Detection', () => {
     const HANDLE = 'safevault_team';
 
     // === Tweet 1 (Tier A — initial detection) ===
+    mockStage1Yes();
     mockShillNo();
     mockTimingFuture();
     mockDisruptionNone();
@@ -283,7 +293,8 @@ describe('Scenario 5: Disruption Detection', () => {
       launchDateRaw: 'next week',
       launchType: 'mainnet',
       website: 'safevault.io',
-      category: 'DeFi',
+      categories: ['Meme'],
+      primaryCategory: 'Meme',
       confidence: {
         projectName: 0.95,
         chain: 0.95,
@@ -313,6 +324,8 @@ describe('Scenario 5: Disruption Detection', () => {
     const originalDate = record.launchDate;
 
     // === Tweet 2 (Tier C — just a progress update, no disruption) ===
+    mockStage1Yes();
+    mockShillNo();
     mockTimingFuture();
     mockDisruptionNone();
     mockExtractor({
@@ -321,7 +334,8 @@ describe('Scenario 5: Disruption Detection', () => {
       launchDate: '2025-03-28T00:00:00Z',
       launchType: 'mainnet',
       website: 'safevault.io',
-      category: 'DeFi',
+      categories: ['Meme'],
+      primaryCategory: 'Meme',
       confidence: {
         projectName: 0.95,
         chain: 0.95,
