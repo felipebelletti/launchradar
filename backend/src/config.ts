@@ -43,9 +43,14 @@ const configSchema = z.object({
   TRIAL_DURATION_DAYS: z.coerce.number().default(3),
   TRIAL_PLAN: z.enum(['FREE', 'SCOUT', 'ALPHA', 'PRO']).default('ALPHA'),
 
+  // Twitter profile provider: which API to use for getUserInfo calls
+  TWITTER_PROFILE_PROVIDER: z.enum(['twitterapi', 'fxtwitter']),
+
   // AlphaGate (optional — integration only runs if both are set)
   ALPHAGATE_COOKIE_NAME: z.string().default(''),
   ALPHAGATE_COOKIE_VALUE: z.string().default(''),
+  ALPHAGATE_CHAINS: z.string().default('Base,Solana,Ethereum'),
+  ALPHAGATE_BACKFILL_DAYS: z.coerce.number().default(7),
 });
 
 const parsed = configSchema.safeParse(process.env);

@@ -388,6 +388,28 @@ const AUDIT_TWEETS: AuditTweet[] = [
     reason: 'Existing product asking for feedback — "try it out" implies already live, no launch event',
   },
 
+  // CaptchaApp — posting token CA means token is live
+  {
+    project: 'CaptchaApp (token CA announcement)',
+    tier: 'TIER_A',
+    authorHandle: 'CaptchaApp',
+    text: '6/ our token CA is FtSRgyCEhKTc1PPgEAXvuHN3NyiP6LS9uyB28KCN3CAP\n\nbe careful out there!',
+    expectedVerdict: 'ACCEPT',
+    reason: 'Project own account posting their token contract address — token is live',
+  },
+
+  // LEGACY — project own account posting token CA (pump.fun)
+  {
+    project: 'LEGACY (own account CA post)',
+    tier: 'TIER_A',
+    authorHandle: 'legacycoincto',
+    authorBio: 'dont be sad its over, be thankful it happened\n\nits about the journey, not the destination 👑',
+    authorFollowers: 270,
+    text: "Don't be sad its over, be thankful it happened.\n\n$LEGACY\n\nCA: DnjT8CjdxUCBhDjv2fW6w6b7w3JRRhfRwEnP8Kiapump",
+    expectedVerdict: 'ACCEPT',
+    reason: 'Project own account posting token CA — token is live on pump.fun',
+  },
+
   // WandrLust own account announcing $AFK TGE — legitimate
   {
     project: 'AFK / WandrLust (own account TGE)',

@@ -10,10 +10,9 @@ const BASE_URL = 'https://api.alphagate.io';
 const CURSOR_KEY = 'alphagate:cursor';
 const STATUS_KEY = 'alphagate:status';
 
-/** Returns Unix timestamp (seconds) for the 1st of the current month at 00:00 UTC. */
-function startOfCurrentMonthUnix(): number {
-  const now = new Date();
-  return Math.floor(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).getTime() / 1000);
+/** Returns Unix timestamp (seconds) for N days ago at 00:00 UTC. */
+function daysAgoUnix(days: number): number {
+  return Math.floor((Date.now() - days * 86_400_000) / 1000);
 }
 
 // ─── Status tracking (Redis) ────────────────────────────

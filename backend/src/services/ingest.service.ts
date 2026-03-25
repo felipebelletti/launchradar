@@ -22,6 +22,7 @@ const TIER_A_LABELS = new Set([
   'chain_eth',
   'chain_bsc',
   'chain_pump',
+  'token_ca',
 ]);
 
 const TIER_B_LABELS = new Set(['time_signals']);

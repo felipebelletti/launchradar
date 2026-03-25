@@ -182,6 +182,11 @@ const STATIC_RULES = [
     filter:
       '("launching tomorrow" OR "launching soon" OR "launching today" OR "goes live tomorrow" OR "goes live soon" OR "launching next week") -is:retweet lang:en',
   },
+  {
+    label: 'token_ca',
+    filter:
+      '("our token CA" OR "our token contract" OR "token CA is" OR "our contract address" OR "contract address is" OR "our CA is") -is:retweet lang:en',
+  },
 ];
 
 /**
@@ -244,53 +249,113 @@ interface UserInfoApiData {
   profile_bio?: { description?: { urls?: Array<{ expanded_url?: string }> } };
 }
 
+async function getUserInfoTwitterApi(userName: string): Promise<UserInfoResponse | null> {
+  // Per-handle cooldown to avoid 429s from concurrent enrichment jobs
+  const cooldownKey = `getUserInfo:cooldown:${userName}`;
+  const onCooldown = await redis.exists(cooldownKey);
+  if (onCooldown) {
+    log.debug('getUserInfo on cooldown, skipping', { userName });
+    return null;
+  }
+
+  const url = new URL(`${BASE_URL}/twitter/user/info`);
+  url.searchParams.set('userName', userName);
+
+  const res = await fetch(url.toString(), {
+    method: 'GET',
+    headers: headers(),
+  });
+
+  // Set 60s cooldown after any call (success or failure)
+  await redis.set(cooldownKey, '1', 'EX', 60);
+
+  if (!res.ok) {
+    log.warn('getUserInfo failed', { userName, status: res.status });
+    return null;
+  }
+
+  const raw = (await res.json()) as { data?: UserInfoApiData };
+  const u = raw.data;
+  if (!u) return null;
+
+  const bioUrls = u.profile_bio?.description?.urls?.map((l) => l.expanded_url);
+  const website = await pickBestProfileWebsiteResolved(u.url, bioUrls);
+
+  return {
+    id: u.id,
+    userName: u.userName,
+    name: u.name,
+    description: u.description,
+    website,
+    publicMetrics: {
+      followersCount: u.followers ?? 0,
+      followingCount: u.following ?? 0,
+      tweetCount: 0,
+    },
+    isVerified: false,
+    isBlueVerified: u.isBlueVerified ?? false,
+  };
+}
+
+interface FxTwitterUserResponse {
+  code: number;
+  message: string;
+  user?: {
+    id: string;
+    screen_name: string;
+    name: string;
+    description: string;
+    followers: number;
+    following: number;
+    tweets: number;
+    website: { url: string; display_url: string } | null;
+    verification: {
+      verified: boolean;
+      type: string | null;
+    };
+  };
+}
+
+async function getUserInfoFxTwitter(userName: string): Promise<UserInfoResponse | null> {
+  const url = `https://api.fxtwitter.com/${userName}`;
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { 'User-Agent': 'LaunchRadar/1.0' },
+  });
+
+  if (!res.ok) {
+    log.warn('fxtwitter getUserInfo failed', { userName, status: res.status });
+    return null;
+  }
+
+  const raw = (await res.json()) as FxTwitterUserResponse;
+  const u = raw.user;
+  if (!u) return null;
+
+  const website = u.website?.url ?? undefined;
+
+  return {
+    id: u.id,
+    userName: u.screen_name,
+    name: u.name,
+    description: u.description,
+    website,
+    publicMetrics: {
+      followersCount: u.followers ?? 0,
+      followingCount: u.following ?? 0,
+      tweetCount: u.tweets ?? 0,
+    },
+    isVerified: u.verification.verified && u.verification.type !== 'business',
+    isBlueVerified: u.verification.verified,
+  };
+}
+
 export async function getUserInfo(userName: string): Promise<UserInfoResponse | null> {
   try {
-    // Per-handle cooldown to avoid 429s from concurrent enrichment jobs
-    const cooldownKey = `getUserInfo:cooldown:${userName}`;
-    const onCooldown = await redis.exists(cooldownKey);
-    if (onCooldown) {
-      log.debug('getUserInfo on cooldown, skipping', { userName });
-      return null;
+    if (config.TWITTER_PROFILE_PROVIDER === 'fxtwitter') {
+      return await getUserInfoFxTwitter(userName);
     }
-
-    const url = new URL(`${BASE_URL}/twitter/user/info`);
-    url.searchParams.set('userName', userName);
-
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      headers: headers(),
-    });
-
-    // Set 60s cooldown after any call (success or failure)
-    await redis.set(cooldownKey, '1', 'EX', 60);
-
-    if (!res.ok) {
-      log.warn('getUserInfo failed', { userName, status: res.status });
-      return null;
-    }
-
-    const raw = (await res.json()) as { data?: UserInfoApiData };
-    const u = raw.data;
-    if (!u) return null;
-
-    const bioUrls = u.profile_bio?.description?.urls?.map((l) => l.expanded_url);
-    const website = await pickBestProfileWebsiteResolved(u.url, bioUrls);
-
-    return {
-      id: u.id,
-      userName: u.userName,
-      name: u.name,
-      description: u.description,
-      website,
-      publicMetrics: {
-        followersCount: u.followers ?? 0,
-        followingCount: u.following ?? 0,
-        tweetCount: 0,
-      },
-      isVerified: false,
-      isBlueVerified: u.isBlueVerified ?? false,
-    };
+    return await getUserInfoTwitterApi(userName);
   } catch (err) {
     log.error('getUserInfo error', { userName, err });
     return null;
