@@ -1,50 +1,55 @@
-import { useState } from 'react';
-import { X } from 'lucide-react';
-import { useAuthStore } from '../../store/auth.store';
-import type { AuthUser } from '../../store/auth.store';
+import { useState, useEffect } from 'react';
+import { X, Mail, ArrowLeft } from 'lucide-react';
 
 interface Props {
   onClose: () => void;
 }
 
 export function EmailAuthModal({ onClose }: Props) {
-  const [tab, setTab] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const setUser = useAuthStore((s) => s.setUser);
+  const [sent, setSent] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Countdown timer for resend cooldown
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
+
+  const handleSend = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      const endpoint =
-        tab === 'login' ? '/auth/email/login' : '/auth/email/register';
-      const res = await fetch(endpoint, {
+      const res = await fetch('/auth/email/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email }),
       });
 
-      const data = (await res.json()) as { user?: AuthUser; error?: string };
       if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
         setError(data.error ?? 'Something went wrong');
         return;
       }
 
-      if (data.user) {
-        setUser(data.user);
-        onClose();
-      }
+      setSent(true);
+      setCooldown(60);
     } catch {
       setError('Network error');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleResend = () => {
+    if (cooldown > 0) return;
+    handleSend();
   };
 
   return (
@@ -53,7 +58,7 @@ export function EmailAuthModal({ onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-radar-text font-medium">
-            {tab === 'login' ? 'Sign In' : 'Create Account'}
+            {sent ? 'Check your email' : 'Sign in with email'}
           </h2>
           <button
             onClick={onClose}
@@ -63,71 +68,80 @@ export function EmailAuthModal({ onClose }: Props) {
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 mb-6 bg-white/5 rounded-lg p-1">
-          <button
-            onClick={() => setTab('login')}
-            className={`flex-1 py-1.5 text-sm rounded-md transition-colors cursor-pointer ${
-              tab === 'login'
-                ? 'bg-white/10 text-radar-text'
-                : 'text-radar-muted hover:text-radar-text'
-            }`}
-          >
-            Login
-          </button>
-          <button
-            onClick={() => setTab('register')}
-            className={`flex-1 py-1.5 text-sm rounded-md transition-colors cursor-pointer ${
-              tab === 'register'
-                ? 'bg-white/10 text-radar-text'
-                : 'text-radar-muted hover:text-radar-text'
-            }`}
-          >
-            Register
-          </button>
-        </div>
+        {!sent ? (
+          /* Step 1: Email input */
+          <form onSubmit={handleSend} className="space-y-4">
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoFocus
+              className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10
+                text-radar-text placeholder:text-radar-muted text-sm
+                focus:outline-none focus:border-radar-amber/50"
+            />
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10
-              text-radar-text placeholder:text-radar-muted text-sm
-              focus:outline-none focus:border-radar-amber/50"
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={8}
-            className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10
-              text-radar-text placeholder:text-radar-muted text-sm
-              focus:outline-none focus:border-radar-amber/50"
-          />
+            {error && <p className="text-radar-red text-sm">{error}</p>}
 
-          {error && (
-            <p className="text-radar-red text-sm">{error}</p>
-          )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 rounded-lg bg-radar-amber text-black font-medium text-sm
+                hover:bg-radar-amber/90 disabled:opacity-50 transition-colors cursor-pointer
+                flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                'Sending...'
+              ) : (
+                <>
+                  <Mail size={16} />
+                  Send magic link
+                </>
+              )}
+            </button>
+          </form>
+        ) : (
+          /* Step 2: Confirmation */
+          <div className="space-y-4">
+            <div className="bg-white/5 border border-white/10 rounded-lg p-4 text-center">
+              <Mail size={32} className="mx-auto text-radar-amber mb-3" />
+              <p className="text-radar-text text-sm mb-1">
+                We sent a sign-in link to
+              </p>
+              <p className="text-radar-amber text-sm font-medium">{email}</p>
+            </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 rounded-lg bg-radar-amber text-black font-medium text-sm
-              hover:bg-radar-amber/90 disabled:opacity-50 transition-colors cursor-pointer"
-          >
-            {loading
-              ? 'Loading...'
-              : tab === 'login'
-                ? 'Sign In'
-                : 'Create Account'}
-          </button>
-        </form>
+            <p className="text-radar-muted text-xs text-center">
+              Click the link in your email to sign in. The link expires in 15 minutes.
+            </p>
+
+            {error && <p className="text-radar-red text-sm text-center">{error}</p>}
+
+            <button
+              onClick={handleResend}
+              disabled={cooldown > 0}
+              className="w-full py-2.5 rounded-lg bg-white/5 border border-white/10
+                text-radar-text text-sm hover:bg-white/10 disabled:opacity-50
+                transition-colors cursor-pointer"
+            >
+              {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend link'}
+            </button>
+
+            <button
+              onClick={() => {
+                setSent(false);
+                setError('');
+              }}
+              className="w-full flex items-center justify-center gap-1.5 text-radar-muted
+                text-sm hover:text-radar-text transition-colors cursor-pointer"
+            >
+              <ArrowLeft size={14} />
+              Use a different email
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

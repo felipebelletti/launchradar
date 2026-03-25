@@ -2,7 +2,7 @@ import type { LaunchRecord } from '../../types';
 
 const SEGMENTS = [
   { key: 'projectName', label: 'Name' },
-  { key: 'chain', label: 'Chain' },
+  { key: 'platform', label: 'Chain' },
   { key: 'launchDate', label: 'Date' },
   { key: 'website', label: 'Web' },
 ] as const;

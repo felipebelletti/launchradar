@@ -5,12 +5,16 @@ import { createChildLogger } from '../logger.js';
 
 const logger = createChildLogger('trial');
 
-export async function maybeStartTrial(user: User, fingerprint: string): Promise<void> {
+export type TrialResult =
+  | { activated: true }
+  | { activated: false; reason: 'already_paid' | 'already_used' | 'fingerprint_reuse' };
+
+export async function maybeStartTrial(user: User, fingerprint: string): Promise<TrialResult> {
   // Already on a paid plan — no trial needed
-  if (user.plan !== 'FREE') return;
+  if (user.plan !== 'FREE') return { activated: false, reason: 'already_paid' };
 
   // Trial already used or active
-  if (user.trialUsed || user.trialExpiresAt) return;
+  if (user.trialUsed || user.trialExpiresAt) return { activated: false, reason: 'already_used' };
 
   // Check fingerprint abuse: has any other user trialed from this device?
   const fingerprintUsed = await prisma.user.findFirst({
@@ -22,15 +26,21 @@ export async function maybeStartTrial(user: User, fingerprint: string): Promise<
   });
 
   if (fingerprintUsed) {
-    await prisma.adminFlag.create({
-      data: {
-        type: 'TRIAL_FINGERPRINT_REUSE',
-        userId: user.id,
-        detail: `Fingerprint ${fingerprint.slice(0, 12)}... already used by user ${fingerprintUsed.id}`,
-      },
+    // Only flag once per user to avoid spam
+    const existingFlag = await prisma.adminFlag.findFirst({
+      where: { type: 'TRIAL_FINGERPRINT_REUSE', userId: user.id },
     });
+    if (!existingFlag) {
+      await prisma.adminFlag.create({
+        data: {
+          type: 'TRIAL_FINGERPRINT_REUSE',
+          userId: user.id,
+          detail: `Fingerprint ${fingerprint.slice(0, 12)}... already used by user ${fingerprintUsed.id}`,
+        },
+      });
+    }
     logger.warn('Trial fingerprint reuse detected', { userId: user.id, fingerprint: fingerprint.slice(0, 12) });
-    return;
+    return { activated: false, reason: 'fingerprint_reuse' };
   }
 
   const now = new Date();
@@ -48,4 +58,5 @@ export async function maybeStartTrial(user: User, fingerprint: string): Promise<
   });
 
   logger.info('Trial started', { userId: user.id });
+  return { activated: true };
 }

@@ -6,16 +6,16 @@ import { LaunchCard } from '../cards/LaunchCard';
 import { LaunchRow } from '../cards/LaunchRow';
 import type { LaunchRecord } from '../../types';
 
-const CHAINS = ['solana', 'ethereum', 'base', 'bsc', 'pump'];
+const PLATFORMS = ['solana', 'ethereum', 'base', 'bsc', 'pump.fun'];
 const CATEGORIES = ['Launchpad', 'NFT', 'Airdrop', 'Meme', 'GameFi', 'Celebrity', 'Other'];
 
 export function SimpleLayout() {
   const { data: calendar } = useCalendar();
   const { data: launches } = useLaunches();
   const { data: trashItems } = useTrashBin();
-  const activeChains = useAppStore((s) => s.filters.chains);
+  const activePlatforms = useAppStore((s) => s.filters.platforms);
   const activeCats = useAppStore((s) => s.filters.categories);
-  const toggleChain = useAppStore((s) => s.toggleChain);
+  const togglePlatform = useAppStore((s) => s.togglePlatform);
   const toggleCat = useAppStore((s) => s.toggleCategory);
 
   const sections = [
@@ -34,12 +34,12 @@ export function SimpleLayout() {
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
       {/* Horizontal filter toggles */}
       <div className="flex gap-2 overflow-x-auto pb-2">
-        {CHAINS.map((c) => (
+        {PLATFORMS.map((c) => (
           <button
             key={c}
-            onClick={() => toggleChain(c)}
+            onClick={() => togglePlatform(c)}
             className={`px-3 py-1 rounded-full text-xs font-mono whitespace-nowrap border transition-colors ${
-              activeChains.size === 0 || activeChains.has(c)
+              activePlatforms.size === 0 || activePlatforms.has(c)
                 ? 'border-radar-amber/30 text-radar-amber bg-radar-amber/10'
                 : 'border-radar-border text-radar-muted'
             }`}

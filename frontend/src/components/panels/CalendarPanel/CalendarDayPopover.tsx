@@ -1,5 +1,5 @@
 import type { LaunchRecord, LaunchStatus } from '../../../types';
-import { ChainTag } from '../../shared/ChainTag';
+import { PlatformTag } from '../../shared/PlatformTag';
 
 const DOT_COLORS: Record<LaunchStatus, string> = {
   STUB: 'bg-red-500',
@@ -53,7 +53,7 @@ export function CalendarDayPopover({
             }`}>
               {l.projectName}
             </span>
-            <ChainTag chain={l.chain} />
+            <PlatformTag platform={l.platform} />
           </div>
         ))}
         {launches.length > 6 && (

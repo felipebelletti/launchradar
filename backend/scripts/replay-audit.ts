@@ -421,6 +421,56 @@ const AUDIT_TWEETS: AuditTweet[] = [
     expectedVerdict: 'ACCEPT',
     reason: 'Project own account (@WandrLust_io, 73K followers) announcing $AFK TGE with date, DEX, and CEX details',
   },
+
+  // === Audit 3 (2026-03-25) — new false positive patterns ===
+
+  // MSTR2100 — scam warning / CA clarification, NOT a launch announcement
+  {
+    project: 'MSTR2100 (scam warning CA clarification)',
+    tier: 'TIER_A',
+    authorHandle: 'MSTR2100',
+    authorBio: 'MSTR2100 | Building on $ETH',
+    authorFollowers: 11141,
+    text: '@Apriyan26496651 @JasonAmada We are so sorry, this is not us, our CA is till 0x42069026eac8eee0fd9b5f7adfa4f6e6d69a2b39 on $ETH',
+    expectedVerdict: 'REJECT',
+    reason: 'Scam warning reply — "this is not us, our CA is still X" is a defensive clarification, not a launch announcement',
+  },
+
+  // MSTR2100 — second scam warning variant
+  {
+    project: 'MSTR2100 (scam report CA clarification)',
+    tier: 'TIER_A',
+    authorHandle: 'MSTR2100',
+    authorBio: 'MSTR2100 | Building on $ETH',
+    authorFollowers: 11141,
+    text: '@R3ign0424 We did report it. Our CA is still 0x42069026eac8eee0fd9b5f7adfa4f6e6d69a2b39',
+    expectedVerdict: 'REJECT',
+    reason: 'Scam report reply — "We did report it. Our CA is still X" is defensive, not a launch',
+  },
+
+  // Cheesepay — referral/invite template promoting another project
+  {
+    project: 'Cheesepay (referral shill by godwin76G)',
+    tier: 'TIER_B',
+    authorHandle: 'godwin76G',
+    authorBio: '',
+    authorFollowers: 31,
+    text: 'Just reserved @godwin on @Cheesepayxyz 🧀\n\n Save in USDC spend in fiat. Cryto Made Easy. Launching soon.\n\nSecure yours 👇\nhttps://t.co/1y8Ibms6w6',
+    expectedVerdict: 'REJECT',
+    reason: 'Referral template — random user promoting @Cheesepayxyz, not their own project',
+  },
+
+  // Cheesepay — second referral variant (tests classifier determinism)
+  {
+    project: 'Cheesepay (referral shill by Trovic8)',
+    tier: 'TIER_B',
+    authorHandle: 'Trovic8',
+    authorBio: '',
+    authorFollowers: 359,
+    text: 'Just reserved @trovic on @Cheesepayxyz 🧀\n\n Save in USDC spend in fiat. Cryto Made Easy. Launching soon.\n\nSecure yours 👇\nhttps://t.co/YXKWY5MNWr',
+    expectedVerdict: 'REJECT',
+    reason: 'Referral template — random user promoting @Cheesepayxyz, not their own project',
+  },
 ];
 
 async function main() {

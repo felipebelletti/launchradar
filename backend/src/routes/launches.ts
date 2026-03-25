@@ -9,12 +9,14 @@ const log = createChildLogger('launches');
 
 const FREE_VISIBLE_STATUSES = new Set<string>(['VERIFIED', 'LIVE']);
 
-/** Redact sensitive fields from a launch record, keeping chain/status/dates for UI rendering */
+/** Redact sensitive fields from a launch record, keeping platform/status/dates for UI rendering */
 function redactLaunch(s: Record<string, unknown>): Record<string, unknown> {
   return {
     id: s.id,
     status: s.status,
     chain: s.chain,
+    platform: s.platform,
+    platforms: s.platforms,
     launchDate: s.launchDate,
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
@@ -58,6 +60,7 @@ interface LaunchListQuery {
   limit?: string;
   status?: string;
   chain?: string;
+  platform?: string;
   category?: string;
   timeframe?: string;
   minFollowers?: string;
@@ -73,20 +76,28 @@ const VALID_STATUSES: LaunchStatus[] = [
   'CANCELLED',
 ];
 
-const CHAIN_SLUG_ALIASES: Record<string, readonly string[]> = {
+const PLATFORM_SLUG_ALIASES: Record<string, readonly string[]> = {
   solana: ['solana', 'sol'],
   ethereum: ['ethereum', 'eth'],
   base: ['base'],
   bsc: ['bsc', 'binance', 'bnb'],
   pump: ['pump', 'pump.fun', 'pumpfun'],
+  'pump.fun': ['pump', 'pump.fun', 'pumpfun'],
+  arbitrum: ['arbitrum', 'arb'],
+  optimism: ['optimism', 'op'],
+  polygon: ['polygon', 'matic'],
+  avalanche: ['avalanche', 'avax'],
+  sui: ['sui'],
+  aptos: ['aptos', 'apt'],
+  ton: ['ton', 'toncoin'],
 };
 
-function expandChainSlugs(slugs: string[]): string[] {
+function expandPlatformSlugs(slugs: string[]): string[] {
   const out = new Set<string>();
   for (const raw of slugs) {
     const key = raw.trim().toLowerCase();
     if (!key) continue;
-    const aliases = CHAIN_SLUG_ALIASES[key];
+    const aliases = PLATFORM_SLUG_ALIASES[key];
     if (aliases) {
       for (const a of aliases) out.add(a);
     } else {
@@ -96,14 +107,14 @@ function expandChainSlugs(slugs: string[]): string[] {
   return [...out];
 }
 
-function chainWhere(chainParam: string | undefined): Prisma.LaunchRecordWhereInput | undefined {
-  if (!chainParam?.trim()) return undefined;
-  const values = expandChainSlugs(chainParam.split(',').map((c) => c.trim()).filter(Boolean));
+function platformWhere(param: string | undefined): Prisma.LaunchRecordWhereInput | undefined {
+  if (!param?.trim()) return undefined;
+  const values = expandPlatformSlugs(param.split(',').map((c) => c.trim()).filter(Boolean));
   if (values.length === 0) return undefined;
   if (values.length === 1) {
-    return { chain: { equals: values[0]!, mode: 'insensitive' } };
+    return { platform: { equals: values[0]!, mode: 'insensitive' } };
   }
-  return { OR: values.map((v) => ({ chain: { equals: v, mode: 'insensitive' } })) };
+  return { OR: values.map((v) => ({ platform: { equals: v, mode: 'insensitive' } })) };
 }
 
 function categoryWhere(categoryParam: string | undefined): Prisma.LaunchRecordWhereInput | undefined {
@@ -128,8 +139,9 @@ function buildWhere(query: LaunchListQuery): Prisma.LaunchRecordWhereInput {
     and.push({ status: { in: ['STUB', 'PARTIAL', 'CONFIRMED', 'VERIFIED', 'LIVE'] } });
   }
 
-  const chainClause = chainWhere(query.chain);
-  if (chainClause) and.push(chainClause);
+  // Support both ?platform= (new) and ?chain= (backwards compat)
+  const platformClause = platformWhere(query.platform ?? query.chain);
+  if (platformClause) and.push(platformClause);
 
   const categoryClause = categoryWhere(query.category);
   if (categoryClause) and.push(categoryClause);
@@ -217,30 +229,30 @@ function registerLaunchRoutesInner(app: FastifyInstance): void {
           }),
         ]);
 
-      // Chain distribution — from confirmed launches today
-      const chainCounts = await prisma.launchRecord.groupBy({
-        by: ['chain'],
+      // Platform distribution — from confirmed launches today
+      const platformCounts = await prisma.launchRecord.groupBy({
+        by: ['platform'],
         where: {
           createdAt: { gte: todayStart },
-          chain: { not: null },
+          platform: { not: null },
           status: { notIn: ['STUB', 'STALE', 'CANCELLED'] },
         },
-        _count: { chain: true },
-        orderBy: { _count: { chain: 'desc' } },
+        _count: { platform: true },
+        orderBy: { _count: { platform: 'desc' } },
         take: 3,
       });
 
-      const total = chainCounts.reduce((sum, c) => sum + c._count.chain, 0);
-      const chainDistribution = chainCounts.map((c) => ({
-        chain: c.chain!,
-        count: c._count.chain,
-        pct: total > 0 ? Math.round((c._count.chain / total) * 100) : 0,
+      const total = platformCounts.reduce((sum, c) => sum + c._count.platform, 0);
+      const platformDistribution = platformCounts.map((c) => ({
+        platform: c.platform!,
+        count: c._count.platform,
+        pct: total > 0 ? Math.round((c._count.platform / total) * 100) : 0,
       }));
 
       // Last signal
       const lastSignal = await prisma.launchRecord.findFirst({
         orderBy: { createdAt: 'desc' },
-        select: { projectName: true, chain: true, createdAt: true, status: true },
+        select: { projectName: true, platform: true, createdAt: true, status: true },
       });
 
       // Signal list — always fetch recent, redact sensitive fields for free users
@@ -264,14 +276,14 @@ function registerLaunchRoutesInner(app: FastifyInstance): void {
           cryptoConfirmed,
           currentlyTracking,
           launchedToday,
-          chainDistribution,
+          platformDistribution,
           lastSignal: lastSignal
             ? {
                 projectName:
                   !isPaid && !FREE_VISIBLE_STATUSES.has(lastSignal.status)
                     ? '█'.repeat(lastSignal.projectName.length)
                     : lastSignal.projectName,
-                chain: lastSignal.chain,
+                platform: lastSignal.platform,
                 detectedAt: lastSignal.createdAt.toISOString(),
               }
             : null,

@@ -16,8 +16,8 @@ export function useTrashBin() {
   // Fetch cancelled launches
   const cancelledParams = new URLSearchParams();
   cancelledParams.set('status', 'CANCELLED');
-  if (filters.chains.size > 0) {
-    cancelledParams.set('chain', [...filters.chains].sort().join(','));
+  if (filters.platforms.size > 0) {
+    cancelledParams.set('platform', [...filters.platforms].sort().join(','));
   }
   if (filters.categories.size > 0) {
     cancelledParams.set('category', [...filters.categories].sort().join(','));
@@ -28,7 +28,7 @@ export function useTrashBin() {
       'launches',
       'cancelled',
       {
-        chain: filters.chains.size ? [...filters.chains].sort().join(',') : undefined,
+        platform: filters.platforms.size ? [...filters.platforms].sort().join(',') : undefined,
         category: filters.categories.size ? [...filters.categories].sort().join(',') : undefined,
       },
     ],
@@ -43,8 +43,8 @@ export function useTrashBin() {
 
   // Fetch all launches (unfiltered by status) to find discarded ones
   const allParams = new URLSearchParams();
-  if (filters.chains.size > 0) {
-    allParams.set('chain', [...filters.chains].sort().join(','));
+  if (filters.platforms.size > 0) {
+    allParams.set('platform', [...filters.platforms].sort().join(','));
   }
   if (filters.categories.size > 0) {
     allParams.set('category', [...filters.categories].sort().join(','));
@@ -54,7 +54,7 @@ export function useTrashBin() {
     queryKey: [
       'launches',
       {
-        chain: filters.chains.size ? [...filters.chains].sort().join(',') : undefined,
+        platform: filters.platforms.size ? [...filters.platforms].sort().join(',') : undefined,
         category: filters.categories.size ? [...filters.categories].sort().join(',') : undefined,
       },
     ],

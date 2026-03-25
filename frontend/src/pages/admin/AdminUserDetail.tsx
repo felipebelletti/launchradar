@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Shield, Ban, Unlock, Trash2, Globe } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { ArrowLeft, Shield, Ban, Unlock, Trash2, Globe, ChevronDown } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { MapContainer, TileLayer, CircleMarker, Tooltip } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -93,6 +93,23 @@ export function AdminUserDetail({ userId, onBack }: Props) {
     const res = await fetch(`/admin/users/${userId}`, { credentials: 'include' });
     const data = (await res.json()) as { data: UserDetail };
     setUser(data.data);
+  };
+
+  const reloadUser = useCallback(async () => {
+    const res = await fetch(`/admin/users/${userId}`, { credentials: 'include' });
+    const data = (await res.json()) as { data: UserDetail };
+    setUser(data.data);
+  }, [userId]);
+
+  const handleChangePlan = async (newPlan: string) => {
+    if (!user || newPlan === user.plan) return;
+    await fetch(`/admin/users/${user.id}/plan`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan: newPlan }),
+    });
+    await reloadUser();
   };
 
   if (loading || !user) {
@@ -206,22 +223,17 @@ export function AdminUserDetail({ userId, onBack }: Props) {
           </div>
         </InfoCard>
         <InfoCard label="Plan">
-          <div className="space-y-1 text-sm">
-            <p className="text-radar-text font-mono font-bold">
-              {user.plan}
-              {user.trialExpiresAt && new Date(user.trialExpiresAt) > new Date() && (
-                <span className="ml-2 text-xs bg-amber-400/20 text-amber-400 px-1.5 py-0.5 rounded">
-                  TRIAL
-                </span>
-              )}
-            </p>
-            {user.trialExpiresAt && new Date(user.trialExpiresAt) > new Date() ? (
+          <div className="space-y-2 text-sm">
+            <PlanSelector currentPlan={user.plan} onChange={handleChangePlan} />
+            {user.trialExpiresAt && new Date(user.trialExpiresAt) > new Date() && (
               <p className="text-radar-muted text-xs">
                 Trial expires {formatDistanceToNow(new Date(user.trialExpiresAt), { addSuffix: true })}
               </p>
-            ) : user.trialUsed ? (
+            )}
+            {!user.trialExpiresAt && user.trialUsed && (
               <p className="text-radar-muted text-xs">Trial used</p>
-            ) : (
+            )}
+            {!user.trialExpiresAt && !user.trialUsed && (
               <p className="text-radar-muted text-xs">Trial not started</p>
             )}
             {user.subscription && (
@@ -370,6 +382,66 @@ function InfoCard({
         {label}
       </h3>
       {children}
+    </div>
+  );
+}
+
+const PLANS = ['FREE', 'SCOUT', 'ALPHA', 'PRO'] as const;
+const PLAN_COLORS: Record<string, string> = {
+  FREE: 'text-radar-muted',
+  SCOUT: 'text-blue-400',
+  ALPHA: 'text-amber-400',
+  PRO: 'text-purple-400',
+};
+
+function PlanSelector({
+  currentPlan,
+  onChange,
+}: {
+  currentPlan: string;
+  onChange: (plan: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 px-3 py-1.5 rounded-md
+          border border-radar-border bg-white/5
+          hover:bg-white/10 hover:border-radar-amber/40 cursor-pointer transition-colors"
+      >
+        <span className={`font-mono font-bold text-base ${PLAN_COLORS[currentPlan] ?? ''}`}>
+          {currentPlan}
+        </span>
+        <ChevronDown size={14} className="text-radar-muted" />
+      </button>
+      <p className="text-radar-muted text-[10px] mt-1">Click to change plan</p>
+      {open && (
+        <div
+          className="absolute top-full left-0 mt-1 z-10 rounded-md border border-radar-border
+            bg-radar-panel shadow-lg min-w-[140px] py-1"
+        >
+          {PLANS.map((plan) => (
+            <button
+              key={plan}
+              onClick={() => {
+                onChange(plan);
+                setOpen(false);
+              }}
+              className={`block w-full text-left px-3 py-2 text-sm font-mono
+                hover:bg-white/10 cursor-pointer transition-colors
+                ${plan === currentPlan ? 'bg-white/5 font-bold' : ''}
+                ${PLAN_COLORS[plan]}`}
+            >
+              {plan}
+              {plan === currentPlan && (
+                <span className="ml-2 text-[10px] text-radar-muted">(current)</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -5,6 +5,8 @@ import { enrichmentQueue } from '../queues/enrichment.queue.js';
 import { registerAccountPolling } from '../queues/account-poll.queue.js';
 import { publishEvent } from '../events/publisher.js';
 import { createChildLogger } from '../logger.js';
+import { config } from '../config.js';
+import { normalizePlatform } from '../platforms.js';
 import type { AlphaGateProject } from './alphagate.service.js';
 
 const PROCESSED_COUNT_KEY = 'alphagate:processed_count';
@@ -15,27 +17,9 @@ const log = createChildLogger('alphagate-ingest');
 // 7-day TTL for "already imported" guard
 const IMPORT_TTL = 60 * 60 * 24 * 7;
 
-// ─── Chain normalization ─────────────────────────────────
-
-const CHAIN_ALIASES: Record<string, string> = {
-  sol: 'Solana',
-  solana: 'Solana',
-  eth: 'Ethereum',
-  ethereum: 'Ethereum',
-  base: 'Base',
-  bsc: 'BSC',
-  bnb: 'BSC',
-  binance: 'BSC',
-  polygon: 'Polygon',
-  avalanche: 'Avalanche',
-  avax: 'Avalanche',
-  arbitrum: 'Arbitrum',
-  optimism: 'Optimism',
-};
-
-function normalizeChain(raw: string): string {
-  return CHAIN_ALIASES[raw.toLowerCase().trim()] ?? raw;
-}
+// ─── Platform normalization ──────────────────────────────
+// Uses the canonical platform list from platforms.ts.
+// Unknown platforms are dropped (returns null) instead of passing through raw.
 
 // ─── Tag → category mapping ─────────────────────────────
 
@@ -64,6 +48,21 @@ export async function processAlphaGateProject(
     return;
   }
 
+  // Guard: skip projects without a matching platform (live events bypass REST filter)
+  const allowedPlatforms = new Set(
+    config.ALPHAGATE_PLATFORMS.split(',').map((c) => c.trim().toLowerCase()).filter(Boolean)
+  );
+  const projectChains = project.chain.map((c) => c.toLowerCase().trim());
+  const hasAllowedPlatform = projectChains.some((c) => allowedPlatforms.has(c));
+  if (!hasAllowedPlatform) {
+    log.debug('Skipping project without allowed platform', {
+      id: project._id,
+      name: project.name,
+      chains: project.chain,
+    });
+    return;
+  }
+
   // Guard: skip already-imported projects (Redis dedup, 7-day TTL)
   const importKey = `alphagate:imported:${project._id}`;
   const alreadyImported = await redis.get(importKey);
@@ -87,7 +86,11 @@ export async function processAlphaGateProject(
 
   const twitterHandle = project.username || null;
   const projectName = project.name || project.username;
-  const chain = project.chain.length > 0 ? normalizeChain(project.chain[0]) : null;
+  // Normalize all chains from AlphaGate through the canonical platform list
+  const normalizedPlatforms: string[] = project.chain
+    .map((c) => normalizePlatform(c))
+    .filter((p) => p !== null) as string[];
+  const platform = normalizedPlatforms[0] ?? null;
   const { primary: primaryCategory, categories } = tagsToCategory(project.tag);
   const description = project.description || null;
 
@@ -133,7 +136,8 @@ export async function processAlphaGateProject(
         extractedData: {
           projectName,
           twitterHandle,
-          chain,
+          platform,
+          platforms: normalizedPlatforms,
           categories,
           primaryCategory,
           website,
@@ -147,7 +151,11 @@ export async function processAlphaGateProject(
 
     // Update fields that are currently missing on the record
     const updates: Record<string, unknown> = {};
-    if (!existingRecord.chain && chain) updates.chain = chain;
+    if (!existingRecord.platform && platform) {
+      updates.platform = platform;
+      updates.chain = platform;
+      updates.platforms = normalizedPlatforms;
+    }
     if (!existingRecord.website && website) updates.website = website;
     if (!existingRecord.summary && description) updates.summary = description;
     if (categories.length > 0 && existingRecord.categories.length === 0) {
@@ -178,7 +186,9 @@ export async function processAlphaGateProject(
         projectName,
         twitterHandle,
         twitterFollowers: project.followers_count || null,
-        chain,
+        chain: platform,
+        platform,
+        platforms: normalizedPlatforms,
         categories,
         primaryCategory,
         website,
@@ -194,7 +204,8 @@ export async function processAlphaGateProject(
             extractedData: {
               projectName,
               twitterHandle,
-              chain,
+              platform,
+              platforms: normalizedPlatforms,
               categories,
               primaryCategory,
               website,
@@ -213,7 +224,7 @@ export async function processAlphaGateProject(
       alphaGateId: project._id,
       launchRecordId,
       projectName,
-      chain,
+      platform,
     });
 
     await publishEvent({
@@ -228,7 +239,7 @@ export async function processAlphaGateProject(
   await redis.set(LAST_PROCESSED_KEY, JSON.stringify({
     name: projectName,
     handle: twitterHandle,
-    chain,
+    platform,
     at: new Date().toISOString(),
   }));
 

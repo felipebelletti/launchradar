@@ -234,7 +234,11 @@ export default async function billingRoutes(app: FastifyInstance) {
       });
       if (!user) return reply.status(404).send({ error: 'User not found' });
 
-      await maybeStartTrial(user, fingerprint);
+      const result = await maybeStartTrial(user, fingerprint);
+
+      if (!result.activated) {
+        return reply.status(409).send({ error: result.reason });
+      }
 
       return reply.send({ ok: true });
     },

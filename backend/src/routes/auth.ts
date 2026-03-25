@@ -6,8 +6,8 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import {
   generateNonce,
   verifyWalletSignature,
-  registerWithEmail,
-  loginWithEmail,
+  sendMagicLink,
+  verifyMagicToken,
   createSession,
   revokeSession,
   revokeAllUserSessions,
@@ -199,46 +199,44 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  // ─── Email Auth ─────────────────────────────────────────
+  // ─── Magic Link Auth ────────────────────────────────────
 
   app.post(
-    '/auth/email/register',
+    '/auth/email/send',
     async (
-      request: FastifyRequest<{ Body: { email: string; password: string } }>,
+      request: FastifyRequest<{ Body: { email: string } }>,
       reply: FastifyReply
     ) => {
-      const { email, password } = request.body ?? {};
-      if (!email || !password) {
-        return reply.status(400).send({ error: 'email and password are required' });
-      }
-      if (password.length < 8) {
-        return reply.status(400).send({ error: 'Password must be at least 8 characters' });
+      const { email } = request.body ?? {};
+      if (!email) {
+        return reply.status(400).send({ error: 'email is required' });
       }
 
       try {
-        const user = await registerWithEmail(email, password);
-        const session = await createSession(user.id, request);
-        setSessionCookie(reply, session.id);
-        return reply.status(201).send({ user: sanitizeUser(user) });
+        await sendMagicLink(email);
       } catch (err) {
-        return reply.status(400).send({ error: (err as Error).message });
+        // Log but don't expose errors to prevent email enumeration
+        log.warn('Magic link send error', { err });
       }
+
+      // Always return 200 to prevent email enumeration
+      return reply.send({ ok: true });
     }
   );
 
   app.post(
-    '/auth/email/login',
+    '/auth/email/verify',
     async (
-      request: FastifyRequest<{ Body: { email: string; password: string } }>,
+      request: FastifyRequest<{ Body: { token: string } }>,
       reply: FastifyReply
     ) => {
-      const { email, password } = request.body ?? {};
-      if (!email || !password) {
-        return reply.status(400).send({ error: 'email and password are required' });
+      const { token } = request.body ?? {};
+      if (!token) {
+        return reply.status(400).send({ error: 'token is required' });
       }
 
       try {
-        const user = await loginWithEmail(email, password);
+        const user = await verifyMagicToken(token);
         const session = await createSession(user.id, request);
         setSessionCookie(reply, session.id);
         return reply.send({ user: sanitizeUser(user) });

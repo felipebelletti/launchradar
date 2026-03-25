@@ -9,6 +9,7 @@ import { createChildLogger } from '../logger.js';
 import { getPrimarySignalTweetUrlForLaunch } from '../tweet-url.js';
 import { expandLaunchWebsite } from '../util/launch-website.js';
 import { timeBadgeFromLaunchDate } from '../util/tweet-time-badge.js';
+import { validatePlatforms } from '../platforms.js';
 import type { ExtractionResult } from '../types/index.js';
 
 function withoutRecapLaunchTiming(
@@ -44,7 +45,7 @@ function handleToReadableName(handle: string): string {
 function calculateConfidenceScore(params: {
   hasProjectName: boolean;
   hasLaunchDateHighConfidence: boolean;
-  hasChain: boolean;
+  hasPlatform: boolean;
   hasWebsite: boolean;
   hasFollowersOver500: boolean;
   isVerified: boolean;
@@ -55,7 +56,7 @@ function calculateConfidenceScore(params: {
 
   if (params.hasProjectName) score += 0.2;
   if (params.hasLaunchDateHighConfidence) score += 0.2;
-  if (params.hasChain) score += 0.15;
+  if (params.hasPlatform) score += 0.15;
   if (params.hasWebsite) score += 0.15;
   if (params.hasFollowersOver500) score += 0.1;
   if (params.isVerified) score += 0.1;
@@ -119,6 +120,71 @@ async function enrichWithProfile(
 }
 
 /**
+ * Track unknown platform names suggested by the LLM for admin review.
+ */
+async function trackPlatformSuggestion(
+  name: string,
+  launchRecordId: string,
+): Promise<void> {
+  const trimmed = name.trim();
+  if (!trimmed || trimmed.length > 100) return;
+
+  try {
+    await prisma.platformSuggestion.upsert({
+      where: { name: trimmed },
+      create: {
+        name: trimmed,
+        occurrences: 1,
+        launchRecordIds: [launchRecordId],
+        lastSeenAt: new Date(),
+      },
+      update: {
+        occurrences: { increment: 1 },
+        launchRecordIds: { push: launchRecordId },
+        lastSeenAt: new Date(),
+      },
+    });
+  } catch (err) {
+    log.warn('Failed to track platform suggestion', { name: trimmed, err });
+  }
+}
+
+/**
+ * Validate platforms from extraction result against the canonical list.
+ * Returns validated platforms and tracks unknown suggestions.
+ */
+async function validateAndTrackPlatforms(
+  extraction: ExtractionResult,
+  launchRecordId: string,
+): Promise<{ platform: string | null; platforms: string[] }> {
+  const rawPlatforms = extraction.platforms.value;
+  const { platforms, unknown } = validatePlatforms(rawPlatforms);
+
+  // Track unknown platforms from both the platforms array and suggestedPlatform field
+  const allUnknown = [...unknown];
+  if (extraction.suggestedPlatform.value) {
+    allUnknown.push(extraction.suggestedPlatform.value);
+  }
+
+  for (const u of allUnknown) {
+    await trackPlatformSuggestion(u, launchRecordId);
+  }
+
+  if (allUnknown.length > 0) {
+    log.info('Unknown platforms suggested by LLM', {
+      launchRecordId,
+      unknown: allUnknown,
+      validated: platforms,
+    });
+  }
+
+  return {
+    platform: platforms[0] ?? null,
+    platforms,
+  };
+}
+
+/**
  * Apply extraction results to a LaunchRecord.
  */
 async function applyExtractionResult(
@@ -134,7 +200,7 @@ async function applyExtractionResult(
   let projectName = extraction.projectName.value;
   let projectNameConfidence = extraction.projectName.confidence;
   const ticker = extraction.ticker.value;
-  const chain = extraction.chain.value;
+  const { platform, platforms } = await validateAndTrackPlatforms(extraction, launchRecordId);
   const website =
     (await expandLaunchWebsite(extraction.website.value)) ??
     (await expandLaunchWebsite(profileData.website)) ??
@@ -179,7 +245,7 @@ async function applyExtractionResult(
     });
   }
 
-  const extractionIsEmpty = !projectName && !chain && !launchDate && !launchType;
+  const extractionIsEmpty = !projectName && !platform && !launchDate && !launchType;
   if (extractionIsEmpty && before.confidenceScore > 0.3) {
     log.info('Skipping degraded extraction — would lower confidence on enriched record', {
       launchRecordId,
@@ -192,7 +258,7 @@ async function applyExtractionResult(
   const confidenceScore = calculateConfidenceScore({
     hasProjectName: !!projectName && extraction.projectName.confidence > 0.5,
     hasLaunchDateHighConfidence: !!launchDate && launchDateConfidence > 0.6,
-    hasChain: !!chain,
+    hasPlatform: !!platform,
     hasWebsite: !!website,
     hasFollowersOver500: profileData.followers > 500,
     isVerified: profileData.isVerified,
@@ -210,7 +276,8 @@ async function applyExtractionResult(
     newStatus,
     projectName,
     hasLaunchDate: !!launchDate,
-    hasChain: !!chain,
+    hasPlatform: !!platform,
+    platforms,
     hasWebsite: !!website,
   });
 
@@ -272,7 +339,9 @@ async function applyExtractionResult(
     data: {
       projectName: hasRealProjectName ? undefined : (projectName ?? undefined),
       ticker: hasRealTicker ? undefined : (ticker ?? undefined),
-      chain: chain ?? undefined,
+      chain: platform ?? undefined,
+      platform: platform ?? undefined,
+      platforms: platforms.length > 0 ? platforms : undefined,
       website: website ?? undefined,
       launchType: launchType ?? undefined,
       categories: categories.length > 0 ? categories : undefined,
@@ -301,7 +370,7 @@ async function applyExtractionResult(
     updated.projectName !== before.projectName ||
     updated.launchDate?.getTime() !== before.launchDate?.getTime() ||
     updated.launchedAt?.getTime() !== before.launchedAt?.getTime() ||
-    updated.chain !== before.chain;
+    updated.platform !== before.platform;
 
   if (meaningful) {
     const sourceTweetUrl = await getPrimarySignalTweetUrlForLaunch(launchRecordId);
@@ -372,17 +441,22 @@ export async function enrichLaunch(
     const needsExtraction = !record.projectName
       || record.projectName === record.twitterHandle
       || record.projectName === liveHandleFallback
-      || !record.chain || record.categories.length === 0;
+      || !record.platform || record.categories.length === 0;
 
     const extractedData: Record<string, string> = {};
     let extractedCategories: string[] | undefined;
+    let validatedPlatforms: string[] = [];
     if (needsExtraction) {
       const extraction = await extractLaunchData(tweetText, profileData.bio, ocrText, undefined, resolvedTweet?.createdAt ?? undefined);
+      const { platform: validatedPlatform, platforms: extractedPlatforms } =
+        await validateAndTrackPlatforms(extraction, launchRecordId);
+      validatedPlatforms = extractedPlatforms;
       const candidates: Record<string, string | null | undefined> = {
         projectName: extraction.projectName.value && extraction.projectName.confidence >= 0.4
           ? extraction.projectName.value
           : null,
-        chain: extraction.chain.value,
+        platform: validatedPlatform,
+        chain: validatedPlatform,
         primaryCategory: extraction.primaryCategory.value,
         launchType: extraction.launchType.value,
         ticker: extraction.ticker.value,
@@ -412,13 +486,17 @@ export async function enrichLaunch(
       where: { id: launchRecordId },
     });
 
+    const launchedAt = record.launchedAt ?? new Date();
     const updated = await prisma.launchRecord.update({
       where: { id: launchRecordId },
       data: {
         ...extractedData,
+        ...(validatedPlatforms.length > 0 ? { platforms: validatedPlatforms } : {}),
         ...(extractedCategories ? { categories: extractedCategories } : {}),
         status: 'LIVE',
-        launchedAt: record.launchedAt ?? new Date(),
+        launchedAt,
+        launchDate: record.launchDate ?? launchedAt,
+        launchDateRaw: null,
         confidenceScore: Math.max(record.confidenceScore, 0.75),
       },
     });
@@ -429,7 +507,7 @@ export async function enrichLaunch(
       updated.projectName !== before.projectName ||
       updated.launchDate?.getTime() !== before.launchDate?.getTime() ||
       updated.launchedAt?.getTime() !== before.launchedAt?.getTime() ||
-      updated.chain !== before.chain;
+      updated.platform !== before.platform;
 
     if (meaningful) {
       const sourceTweetUrl = await getPrimarySignalTweetUrlForLaunch(launchRecordId);
@@ -466,6 +544,11 @@ export async function enrichLaunch(
         data: { launchRecordId: duplicateOf.id },
       }),
       prisma.launchSource.updateMany({
+        where: { launchRecordId },
+        data: { launchRecordId: duplicateOf.id },
+      }),
+      // Re-point any MonitoredAccounts to the surviving record so they don't become orphaned
+      prisma.monitoredAccount.updateMany({
         where: { launchRecordId },
         data: { launchRecordId: duplicateOf.id },
       }),

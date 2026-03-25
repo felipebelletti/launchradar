@@ -24,13 +24,15 @@ interface AlphaGateStats {
     totalSources: number;
     sourcesToday: number;
     sources24h: number;
-    lastProcessed: { name: string; handle: string; chain: string | null; at: string } | null;
+    lastProcessed: { name: string; handle: string; platform: string | null; at: string } | null;
   };
   recentRecords: {
     id: string;
     projectName: string;
     twitterHandle: string | null;
     chain: string | null;
+    platform: string | null;
+    platforms: string[];
     status: string;
     confidenceScore: number;
     createdAt: string;
@@ -218,9 +220,9 @@ export function AdminAlphaGate() {
             {data.stats.lastProcessed.handle && (
               <span className="text-radar-muted text-xs">@{data.stats.lastProcessed.handle}</span>
             )}
-            {data.stats.lastProcessed.chain && (
+            {data.stats.lastProcessed.platform && (
               <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-radar-cyan">
-                {data.stats.lastProcessed.chain}
+                {data.stats.lastProcessed.platform}
               </span>
             )}
             <span className="text-radar-muted text-xs ml-auto">
@@ -253,9 +255,9 @@ export function AdminAlphaGate() {
                     @{r.twitterHandle}
                   </span>
                 )}
-                {r.chain && (
+                {r.platform && (
                   <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-radar-cyan">
-                    {r.chain}
+                    {r.platform}
                   </span>
                 )}
                 <StatusBadge status={r.status} />

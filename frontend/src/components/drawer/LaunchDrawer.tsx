@@ -5,7 +5,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useAppStore } from '../../store/app.store';
 import { useLaunch } from '../../hooks/useLaunch';
 import { StatusBadge } from '../shared/StatusBadge';
-import { ChainTag } from '../shared/ChainTag';
+import { PlatformTag } from '../shared/PlatformTag';
 import { CategoryBadge } from '../shared/CategoryBadge';
 import { ConfidenceBar } from '../shared/ConfidenceBar';
 import { WatchButton } from '../shared/WatchButton';
@@ -88,7 +88,7 @@ export function LaunchDrawer() {
 
             {/* Metadata grid */}
             <div className="grid grid-cols-3 gap-x-4 gap-y-4 px-6 py-4 border-b border-radar-border">
-              <MetaField label="CHAIN" value={<ChainTag chain={launch.chain} />} />
+              <MetaField label="CHAIN" value={<PlatformTag platform={launch.platform} />} />
               <MetaField label="CATEGORIES" value={
                 launch.categories.length > 0
                   ? <div className="flex flex-wrap gap-1">{launch.categories.map((c) => <CategoryBadge key={c} category={c} />)}</div>
@@ -104,7 +104,9 @@ export function LaunchDrawer() {
                         ? new Date(launch.launchDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
                         : launch.status === 'LIVE' && launch.launchedAt
                           ? new Date(launch.launchedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-                          : (launch.launchDateRaw && !/^\s*soon\s*$/i.test(launch.launchDateRaw)) ? launch.launchDateRaw : 'TBD'}
+                          : launch.tweets?.some(t => t.timeBadge === 'LIVE_NOW')
+                            ? 'live now'
+                            : (launch.launchDateRaw && !/^\s*soon\s*$/i.test(launch.launchDateRaw)) ? launch.launchDateRaw : 'TBD'}
                     </span>
                     {launch.rescheduledAt && launch.previousLaunchDate && (
                       <span className="text-[10px] font-mono text-amber-400">

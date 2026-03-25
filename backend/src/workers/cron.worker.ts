@@ -14,7 +14,11 @@ async function expireStaleMonitors(): Promise<void> {
   const stale = await prisma.monitoredAccount.findMany({
     where: {
       active: true,
-      lastTweetAt: { lt: cutoff },
+      OR: [
+        { lastTweetAt: { lt: cutoff } },
+        // Accounts that never tweeted — expire based on activatedAt
+        { lastTweetAt: null, activatedAt: { lt: cutoff } },
+      ],
     },
   });
 

@@ -7,14 +7,14 @@ export interface IntelligenceStats {
   cryptoConfirmed: number;
   currentlyTracking: number;
   launchedToday: number;
-  chainDistribution: Array<{
-    chain: string;
+  platformDistribution: Array<{
+    platform: string;
     count: number;
     pct: number;
   }>;
   lastSignal: {
     projectName: string | null;
-    chain: string | null;
+    platform: string | null;
     detectedAt: string;
   } | null;
 }

@@ -65,10 +65,10 @@ function buildTimeline(launch: LaunchRecord): TimelineEntry[] {
     });
   }
 
-  if (launch.chain) {
+  if (launch.platform) {
     entries.push({
       time: formatDistanceToNow(new Date(launch.updatedAt), { addSuffix: true }),
-      label: `Chain confirmed: ${launch.chain}`,
+      label: `Platform confirmed: ${launch.platform}`,
     });
   }
 

@@ -45,6 +45,26 @@ export function startAccountPollWorker(): Worker<PollAccountJob> {
         return;
       }
 
+      // Safety check: verify the linked LaunchRecord still exists.
+      // If it was deleted during a merge, deactivate the orphaned monitor.
+      if (monitor.launchRecordId) {
+        const recordExists = await prisma.launchRecord.findUnique({
+          where: { id: monitor.launchRecordId },
+          select: { id: true },
+        });
+        if (!recordExists) {
+          log.warn('MonitoredAccount references deleted LaunchRecord, deactivating', {
+            handle,
+            staleRecordId: monitor.launchRecordId,
+          });
+          await prisma.monitoredAccount.update({
+            where: { twitterHandle: handle },
+            data: { active: false },
+          });
+          return;
+        }
+      }
+
       // Use lastPollAt if available, otherwise activatedAt
       // This is the key: we only ever fetch tweets AFTER we started monitoring
       const since = monitor.lastPollAt ?? monitor.activatedAt;

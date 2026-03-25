@@ -28,6 +28,8 @@ export interface LaunchRecord {
   rescheduledAt: string | null;
   launchType: string | null;
   chain: string | null;
+  platform: string | null;
+  platforms: string[];
   categories: string[];
   primaryCategory: string | null;
   website: string | null;

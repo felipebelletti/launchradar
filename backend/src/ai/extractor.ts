@@ -1,5 +1,6 @@
 import { xaiClient, GROK_MODEL } from './client.js';
 import { createChildLogger } from '../logger.js';
+import { PLATFORM_PROMPT_LIST } from '../platforms.js';
 import type { ExtractionResult } from '../types/index.js';
 
 const log = createChildLogger('ai:extractor');
@@ -16,7 +17,8 @@ const USER_PROMPT_TEMPLATE = `Extract structured launch data from the following 
   "launchDate": { "value": string | null, "confidence": number },
   "launchDateRaw": { "value": string | null, "confidence": number },
   "launchType": { "value": "presale" | "airdrop" | "mainnet" | "mint" | "testnet" | "tge" | null, "confidence": number },
-  "chain": { "value": string | null, "confidence": number },
+  "platforms": { "value": string[], "confidence": number },
+  "suggestedPlatform": { "value": string | null, "confidence": number },
   "categories": { "value": ["Launchpad" | "NFT" | "Airdrop" | "Meme" | "GameFi" | "Celebrity" | "Utility" | "Other"], "confidence": number },
   "primaryCategory": { "value": "Launchpad" | "NFT" | "Airdrop" | "Meme" | "GameFi" | "Celebrity" | "Utility" | "Other" | null, "confidence": number },
   "website": { "value": string | null, "confidence": number },
@@ -25,6 +27,8 @@ const USER_PROMPT_TEMPLATE = `Extract structured launch data from the following 
 
 Rules:
 - confidence is a float from 0 to 1 (1 = certain, 0 = guessing)
+- platforms: an array of blockchain/platform names the project is launching on, ordered by relevance (first = primary). ONLY use values from this exact list: {PLATFORM_LIST}. If multiple platforms are mentioned (e.g. "launching on Base and Ethereum"), include all that apply. If the platform mentioned is NOT in the list, set platforms to [] and instead put the raw platform name in suggestedPlatform
+- suggestedPlatform: if the tweet mentions a specific platform/chain that is NOT in the allowed list above, put its name here exactly as mentioned. Otherwise set to null. Do NOT confuse the project name with a platform name — a project building ON a chain is not a platform itself
 - launchDate and launchDateRaw are ONLY for the actual project/token LAUNCH — when the token goes live, the mint opens, the mainnet starts, or the presale begins.
 - Do NOT use snapshot deadlines, airdrop eligibility cutoffs, whitelist closing times, or "drop your wallet" deadlines as launchDate. "Snapshot in 12 hours" is an eligibility deadline, NOT the launch date.
 - If the tweet says "launching soon" but only gives a specific time for a snapshot/eligibility window, set launchDate to null (the launch date is unknown, only the snapshot time is known).
@@ -71,7 +75,8 @@ function buildPrompt(
     .replace('{AUTHOR_BIO}', authorBio || 'N/A')
     .replace('{OCR_SECTION}', ocrSection)
     .replace('{WEBSITE_SECTION}', websiteSection)
-    .replace('{CURRENT_DATETIME}', (tweetCreatedAt ?? new Date()).toISOString());
+    .replace('{CURRENT_DATETIME}', (tweetCreatedAt ?? new Date()).toISOString())
+    .replace('{PLATFORM_LIST}', PLATFORM_PROMPT_LIST);
 }
 
 function parseExtractionResponse(raw: string): ExtractionResult {
@@ -117,13 +122,16 @@ function parseExtractionResponse(raw: string): ExtractionResult {
     return { value: [], confidence: 0 };
   }
 
+  const platformsArr = getArrayField('platforms');
   return {
     projectName: getField('projectName'),
     ticker: getField('ticker'),
     launchDate: getField('launchDate'),
     launchDateRaw: getField('launchDateRaw'),
     launchType: getField('launchType'),
-    chain: getField('chain'),
+    platform: { value: platformsArr.value[0] ?? null, confidence: platformsArr.confidence },
+    platforms: platformsArr,
+    suggestedPlatform: getField('suggestedPlatform'),
     categories: getArrayField('categories'),
     primaryCategory: getField('primaryCategory'),
     website: getField('website'),
@@ -181,7 +189,9 @@ export async function extractLaunchData(
       launchDate: emptyField,
       launchDateRaw: emptyField,
       launchType: emptyField,
-      chain: emptyField,
+      platform: emptyField,
+      platforms: { value: [], confidence: 0 },
+      suggestedPlatform: emptyField,
       categories: { value: [], confidence: 0 },
       primaryCategory: emptyField,
       website: emptyField,

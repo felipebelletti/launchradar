@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
-import { ChainTag } from '../shared/ChainTag';
+import { PlatformTag } from '../shared/PlatformTag';
 import { StatusBadge } from '../shared/StatusBadge';
 import { CategoryBadge } from '../shared/CategoryBadge';
 import { useAppStore } from '../../store/app.store';
@@ -10,11 +10,13 @@ function formatLaunchTime(
   date: string | null,
   raw: string | null,
   status: LaunchRecord['status'],
-  launchedAt: string | null
+  launchedAt: string | null,
+  hasLiveNowTweet?: boolean
 ): string {
   if (status === 'LIVE' && launchedAt) {
     return `launched ${formatDistanceToNow(new Date(launchedAt), { addSuffix: true })}`;
   }
+  if (hasLiveNowTweet) return 'live now';
   if (!date && raw) return /^\s*soon\s*$/i.test(raw) ? 'TBD' : raw;
   if (!date) return 'TBD';
   const d = new Date(date);
@@ -41,7 +43,8 @@ export function LaunchCard({ launch }: { launch: LaunchRecord }) {
   const openDrawer = useAppStore((s) => s.openDrawer);
   const isNewHighlight = useAppStore((s) => s.highlightedLaunchIds.includes(launch.id));
 
-  const timeLabel = formatLaunchTime(launch.launchDate, launch.launchDateRaw, launch.status, launch.launchedAt);
+  const hasLiveNowTweet = launch.tweets?.some(t => t.timeBadge === 'LIVE_NOW') ?? false;
+  const timeLabel = formatLaunchTime(launch.launchDate, launch.launchDateRaw, launch.status, launch.launchedAt, hasLiveNowTweet);
 
   return (
     <motion.div
@@ -80,10 +83,10 @@ export function LaunchCard({ launch }: { launch: LaunchRecord }) {
         </div>
       </div>
 
-      {/* Row 2: Chain + Category tags (same row) */}
-      {(launch.chain || launch.primaryCategory) && (
+      {/* Row 2: Platform + Category tags (same row) */}
+      {(launch.platform || launch.primaryCategory) && (
         <div className="flex items-center gap-1.5 mt-2 min-w-0">
-          {launch.chain && <ChainTag chain={launch.chain} />}
+          {launch.platform && <PlatformTag platform={launch.platform} />}
           {launch.primaryCategory && <CategoryBadge category={launch.primaryCategory} />}
         </div>
       )}

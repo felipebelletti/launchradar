@@ -15,7 +15,7 @@ import { NavPlanBadge } from './NavPlanBadge';
 const ALL_PANELS: { id: string; label: string; icon: ComponentType<LucideProps>; color: string }[] = [
   { id: 'calendar',  label: 'Calendar',   icon: CalendarClock,     color: 'text-radar-amber' },
   { id: 'signal-intel', label: 'Signal Intel', icon: Radio,          color: 'text-radar-red' },
-  { id: 'chain',     label: 'Chains',     icon: Link,              color: 'text-radar-cyan' },
+  { id: 'platform',  label: 'Platforms',  icon: Link,              color: 'text-radar-cyan' },
   { id: 'category',  label: 'Categories', icon: Tags,              color: 'text-radar-orange' },
   { id: 'watchlist', label: 'Watchlist',  icon: Eye,               color: 'text-sky-400' },
   { id: 'trash',     label: 'Trash Bin',  icon: Trash2,            color: 'text-zinc-400' },

@@ -250,6 +250,47 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  app.patch(
+    '/admin/users/:id/plan',
+    async (
+      request: FastifyRequest<{
+        Params: { id: string };
+        Body: { plan: string };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { plan } = (request.body ?? {}) as { plan?: string };
+      if (!plan || !['FREE', 'SCOUT', 'ALPHA', 'PRO'].includes(plan)) {
+        return reply.status(400).send({ error: 'plan must be: FREE, SCOUT, ALPHA, or PRO' });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: request.params.id },
+      });
+
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          plan: plan as 'FREE' | 'SCOUT' | 'ALPHA' | 'PRO',
+          planUpdatedAt: new Date(),
+        },
+      });
+
+      log.info('User plan changed by admin', {
+        userId: user.id,
+        oldPlan: user.plan,
+        newPlan: plan,
+        adminId: request.user!.id,
+      });
+
+      return reply.send({ ok: true });
+    }
+  );
+
   app.delete(
     '/admin/users/:id/sessions',
     async (
@@ -486,6 +527,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             projectName: true,
             twitterHandle: true,
             chain: true,
+            platform: true,
+            platforms: true,
             status: true,
             confidenceScore: true,
             createdAt: true,
@@ -526,4 +569,88 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       recentRecords,
     });
   });
+
+  // ─── Platform Suggestions ────────────────────────────────
+
+  app.get(
+    '/admin/platform-suggestions',
+    async (
+      request: FastifyRequest<{
+        Querystring: { page?: string; limit?: string; status?: string };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const page = Math.max(1, parseInt(request.query.page ?? '1', 10));
+      const limit = Math.min(100, Math.max(1, parseInt(request.query.limit ?? '50', 10)));
+      const skip = (page - 1) * limit;
+
+      const where: Record<string, unknown> = {};
+      const statusFilter = request.query.status?.toUpperCase();
+      if (statusFilter && ['PENDING', 'APPROVED', 'DISMISSED'].includes(statusFilter)) {
+        where.status = statusFilter;
+      }
+
+      const [suggestions, total] = await Promise.all([
+        prisma.platformSuggestion.findMany({
+          where,
+          orderBy: [{ occurrences: 'desc' }, { lastSeenAt: 'desc' }],
+          skip,
+          take: limit,
+        }),
+        prisma.platformSuggestion.count({ where }),
+      ]);
+
+      return reply.send({
+        data: suggestions,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      });
+    }
+  );
+
+  app.post(
+    '/admin/platform-suggestions/:id/review',
+    async (
+      request: FastifyRequest<{
+        Params: { id: string };
+        Body: { action: string };
+      }>,
+      reply: FastifyReply
+    ) => {
+      const { action } = (request.body ?? {}) as { action?: string };
+      if (!action || !['approved', 'dismissed'].includes(action)) {
+        return reply.status(400).send({ error: 'action must be: approved or dismissed' });
+      }
+
+      const suggestion = await prisma.platformSuggestion.findUnique({
+        where: { id: request.params.id },
+      });
+
+      if (!suggestion) {
+        return reply.status(404).send({ error: 'Platform suggestion not found' });
+      }
+
+      await prisma.platformSuggestion.update({
+        where: { id: suggestion.id },
+        data: {
+          status: action === 'approved' ? 'APPROVED' : 'DISMISSED',
+          reviewedAt: new Date(),
+          reviewedBy: request.user!.id,
+        },
+      });
+
+      log.info('Platform suggestion reviewed', {
+        suggestionId: suggestion.id,
+        name: suggestion.name,
+        action,
+        adminId: request.user!.id,
+      });
+
+      return reply.send({ ok: true });
+    }
+  );
 }

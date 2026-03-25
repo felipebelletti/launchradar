@@ -7,8 +7,8 @@ export function useCalendar() {
   const filters = useAppStore((s) => s.filters);
 
   const params = new URLSearchParams();
-  if (filters.chains.size > 0) {
-    params.set('chain', [...filters.chains].sort().join(','));
+  if (filters.platforms.size > 0) {
+    params.set('platform', [...filters.platforms].sort().join(','));
   }
   if (filters.categories.size > 0) {
     params.set('category', [...filters.categories].sort().join(','));
@@ -23,7 +23,7 @@ export function useCalendar() {
   const queryKey = [
     'calendar',
     {
-      chain: filters.chains.size ? [...filters.chains].sort().join(',') : undefined,
+      platform: filters.platforms.size ? [...filters.platforms].sort().join(',') : undefined,
       category: filters.categories.size ? [...filters.categories].sort().join(',') : undefined,
       minFollowers: filters.minFollowers,
     },

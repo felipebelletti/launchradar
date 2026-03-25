@@ -4,7 +4,7 @@ import { useTrashBin } from '../../hooks/useTrashBin';
 import { useDiscardStore } from '../../store/discard.store';
 import { useAppStore } from '../../store/app.store';
 import { PanelShell } from './PanelShell';
-import { ChainTag } from '../shared/ChainTag';
+import { PlatformTag } from '../shared/PlatformTag';
 import { CategoryBadge } from '../shared/CategoryBadge';
 import type { LaunchRecord } from '../../types';
 
@@ -69,7 +69,7 @@ function TrashRow({ launch, reason }: { launch: LaunchRecord; reason: 'cancelled
         {launch.projectName}
       </span>
       <div className="flex items-center gap-2 flex-shrink-0">
-        <ChainTag chain={launch.chain} />
+        <PlatformTag platform={launch.platform} />
         <CategoryBadge category={launch.primaryCategory} />
         <span className={`text-[10px] font-mono font-bold tracking-wider ${
           reason === 'cancelled' ? 'text-rose-400/60' : 'text-zinc-500'

@@ -35,7 +35,9 @@ export interface ExtractionResult {
   launchDate: ExtractionFieldResult;
   launchDateRaw: ExtractionFieldResult;
   launchType: ExtractionFieldResult;
-  chain: ExtractionFieldResult;
+  platform: ExtractionFieldResult;
+  platforms: { value: string[]; confidence: number };
+  suggestedPlatform: ExtractionFieldResult;
   categories: { value: string[]; confidence: number };
   primaryCategory: ExtractionFieldResult;
   website: ExtractionFieldResult;

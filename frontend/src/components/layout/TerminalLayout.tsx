@@ -6,7 +6,7 @@ import 'react-resizable/css/styles.css';
 import { useAppStore, LAYOUT_STORAGE_KEY } from '../../store/app.store';
 import { CalendarPanel } from '../panels/CalendarPanel';
 import { SignalIntelligencePanel } from '../panels/SignalIntelligencePanel';
-import { ChainFilterPanel } from '../panels/ChainFilterPanel';
+import { PlatformFilterPanel } from '../panels/PlatformFilterPanel';
 import { CategoryFilterPanel } from '../panels/CategoryFilterPanel';
 import { WatchlistPanel } from '../panels/WatchlistPanel';
 import { TrashBinPanel } from '../panels/TrashBinPanel';
@@ -16,7 +16,7 @@ const ROW_HEIGHT = 80;
 const DEFAULT_LAYOUT: Layout[] = [
   { i: 'calendar',  x: 0, y: 0, w: 8, h: 6, minW: 4, minH: 4 },
   { i: 'signal-intel', x: 8, y: 0, w: 4, h: 6, minW: 3, minH: 4 },
-  { i: 'chain',     x: 0, y: 6, w: 2, h: 2, minW: 2, minH: 2 },
+  { i: 'platform',  x: 0, y: 6, w: 2, h: 2, minW: 2, minH: 2 },
   { i: 'category',  x: 2, y: 6, w: 2, h: 2, minW: 2, minH: 2 },
   { i: 'trash',     x: 4, y: 6, w: 4, h: 4, minW: 2, minH: 3 },
   { i: 'watchlist', x: 8, y: 6, w: 4, h: 4, minW: 2, minH: 3 },
@@ -39,7 +39,7 @@ function loadLayout(): Layout[] {
 const PANELS: Record<string, (onClose: () => void) => React.ReactNode> = {
   'calendar':  (onClose) => <CalendarPanel onClose={onClose} />,
   'signal-intel': (onClose) => <SignalIntelligencePanel onClose={onClose} />,
-  'chain':     (onClose) => <ChainFilterPanel onClose={onClose} />,
+  'platform':  (onClose) => <PlatformFilterPanel onClose={onClose} />,
   'category':  (onClose) => <CategoryFilterPanel onClose={onClose} />,
   'trash':     (onClose) => <TrashBinPanel onClose={onClose} />,
   'watchlist':  (onClose) => <WatchlistPanel onClose={onClose} />,

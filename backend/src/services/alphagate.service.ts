@@ -67,7 +67,7 @@ interface DiscoverResponse {
 export async function loadCursor(): Promise<number> {
   const stored = await redis.get(CURSOR_KEY);
   if (stored) return parseInt(stored, 10);
-  return startOfCurrentMonthUnix();
+  return daysAgoUnix(config.ALPHAGATE_BACKFILL_DAYS);
 }
 
 export async function updateCursor(timestamp: number): Promise<void> {
@@ -122,11 +122,19 @@ export async function backfill(since: number): Promise<AlphaGateProject[]> {
   const results: AlphaGateProject[] = [];
   let page = 1;
 
+  // Build chain filter params (e.g. &chains[]=Base&chains[]=Solana&chains[]=Ethereum)
+  const chainParams = config.ALPHAGATE_CHAINS.split(',')
+    .map((c) => c.trim())
+    .filter(Boolean)
+    .map((c) => `chains[]=${encodeURIComponent(c)}`)
+    .join('&');
+
   while (true) {
     const url =
       `${BASE_URL}/api/v1/child/discover?` +
-      `ontop=false&page=${page}&limit=60&unfiltered=true&order=-1` +
-      `&exclude_tags[]=Launched`;
+      `ontop=false&page=${page}&limit=60&unfiltered=false&order=-1` +
+      `&exclude_tags[]=Launched&exclude_tags[]=NFT` +
+      (chainParams ? `&${chainParams}` : '');
 
     let res: DiscoverResponse;
     try {

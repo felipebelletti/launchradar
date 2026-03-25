@@ -28,7 +28,6 @@
     "@fastify/rate-limit": "^9.0.0",
     "@prisma/client": "^5.22.0",
     "@solana/web3.js": "^1.98.4",
-    "argon2": "^0.44.0",
     "bs58": "^6.0.0",
     "bullmq": "^5.13.2",
     "cheerio": "^1.0.0",

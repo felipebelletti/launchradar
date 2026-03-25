@@ -4,7 +4,7 @@ import { PanelShell } from './PanelShell';
 import { WatchlistSettingsPopover } from './WatchlistSettingsPopover';
 import { GatedContent } from '../shared/GatedContent';
 import { UpgradeButton } from '../shared/UpgradeButton';
-import { ChainTag } from '../shared/ChainTag';
+import { PlatformTag } from '../shared/PlatformTag';
 import { StatusBadge } from '../shared/StatusBadge';
 import { WatchItemSettings } from '../shared/WatchItemSettings';
 import { useAppStore } from '../../store/app.store';
@@ -111,7 +111,7 @@ export function WatchlistPanel({ onClose }: { onClose?: () => void }) {
               <span className="flex-1 font-mono text-sm truncate min-w-0 text-radar-text">
                 {launch.projectName}
               </span>
-              <ChainTag chain={launch.chain} />
+              <PlatformTag platform={launch.platform} />
               <StatusBadge status={launch.status} />
               <WatchItemSettings launchId={launch.id} />
               <RemoveWatchRowButton onRemove={() => toggleWatch(launch.id)} />

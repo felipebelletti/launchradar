@@ -8,8 +8,8 @@ export function useCancelledLaunches() {
 
   const params = new URLSearchParams();
   params.set('status', 'CANCELLED');
-  if (filters.chains.size > 0) {
-    params.set('chain', [...filters.chains].sort().join(','));
+  if (filters.platforms.size > 0) {
+    params.set('platform', [...filters.platforms].sort().join(','));
   }
   if (filters.categories.size > 0) {
     params.set('category', [...filters.categories].sort().join(','));
@@ -22,7 +22,7 @@ export function useCancelledLaunches() {
     'launches',
     'cancelled',
     {
-      chain: filters.chains.size ? [...filters.chains].sort().join(',') : undefined,
+      platform: filters.platforms.size ? [...filters.platforms].sort().join(',') : undefined,
       category: filters.categories.size ? [...filters.categories].sort().join(',') : undefined,
     },
   ] as const;

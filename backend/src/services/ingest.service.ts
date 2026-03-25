@@ -34,14 +34,14 @@ function detectTier(ruleLabel: string): RuleSource {
   return RuleSource.TIER_C;
 }
 
-function inferChainFromLabel(ruleLabel: string): string | null {
-  const chainMap: Record<string, string> = {
-    chain_sol: 'Solana',
-    chain_eth: 'Ethereum',
-    chain_bsc: 'BSC',
-    chain_pump: 'Solana', // pump.fun is Solana-based
+function inferPlatformFromLabel(ruleLabel: string): { platform: string; platforms: string[] } | null {
+  const map: Record<string, { platform: string; platforms: string[] }> = {
+    chain_sol: { platform: 'Solana', platforms: ['Solana'] },
+    chain_eth: { platform: 'Ethereum', platforms: ['Ethereum'] },
+    chain_bsc: { platform: 'BSC', platforms: ['BSC'] },
+    chain_pump: { platform: 'Pump.fun', platforms: ['Pump.fun', 'Solana'] },
   };
-  return chainMap[ruleLabel] ?? null;
+  return map[ruleLabel] ?? null;
 }
 
 /**
@@ -156,7 +156,7 @@ export async function ingestTweet(
     stage1: 'pass',
     stage2: tier === RuleSource.TIER_B ? 'pass' : 'skip (crypto-confirmed)',
     tier,
-    ...(tier === RuleSource.TIER_A ? { chain: inferChainFromLabel(ruleLabel) } : {}),
+    ...(tier === RuleSource.TIER_A ? { platform: inferPlatformFromLabel(ruleLabel)?.platform } : {}),
   });
 
   // Step 2b: Classify launch timing (future vs live) — runs after crypto filter passes
@@ -234,8 +234,8 @@ export async function ingestTweet(
     undefined  // ticker unknown at this stage
   );
 
-  // Step 4: Determine initial chain hint (for Tier A rules)
-  const chainHint = tier === RuleSource.TIER_A ? inferChainFromLabel(ruleLabel) : null;
+  // Step 4: Determine initial platform hint (for Tier A rules)
+  const platformHint = tier === RuleSource.TIER_A ? inferPlatformFromLabel(ruleLabel) : null;
 
   // Step 5: Upsert LaunchRecord and create TweetSignal
   let launchRecordId: string;
@@ -294,7 +294,9 @@ export async function ingestTweet(
         twitterHandle: tweet.authorHandle,
         twitterFollowers: tweet.authorFollowers,
         isVerifiedAccount: tweet.authorIsVerified,
-        chain: chainHint,
+        chain: platformHint?.platform ?? null,
+        platform: platformHint?.platform ?? null,
+        platforms: platformHint?.platforms ?? [],
         ruleSource: tier,
         confidenceScore: tier === RuleSource.TIER_A ? 0.1 : 0,
         status: 'STUB',

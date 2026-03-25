@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ChainTag } from '../shared/ChainTag';
+import { PlatformTag } from '../shared/PlatformTag';
 import { StatusBadge } from '../shared/StatusBadge';
 import { WatchButton } from '../shared/WatchButton';
 import { DiscardButton } from '../shared/DiscardButton';
@@ -89,7 +89,7 @@ export function LaunchRow({ launch, locked = false }: { launch: LaunchRecord; lo
       <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
         <DiscardButton launchId={launch.id} size={12} />
         <WatchButton launchId={launch.id} size={12} />
-        <ChainTag chain={launch.chain} />
+        <PlatformTag platform={launch.platform} />
         <span className="font-mono text-xs text-white/40 whitespace-nowrap w-14 text-right">
           {launch.status === 'LIVE' ? 'LIVE' : formatShortTime(launch.launchDate)}
         </span>

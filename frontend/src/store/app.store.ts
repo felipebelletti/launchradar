@@ -1,12 +1,12 @@
 import { create } from 'zustand';
 import type { AppMode, Timeframe } from '../types';
 
-// v7: replaced live-feed panel with signal-intel panel
-export const LAYOUT_STORAGE_KEY = 'launchradar:layout:v7';
+// v8: renamed chain panel → platform panel
+export const LAYOUT_STORAGE_KEY = 'launchradar:layout:v8';
 
 interface AppStore {
   filters: {
-    chains: Set<string>;
+    platforms: Set<string>;
     categories: Set<string>;
     timeframe: Timeframe;
     minFollowers: number | null;
@@ -21,7 +21,7 @@ interface AppStore {
   closedPanels: Set<string>;
   layoutVersion: number;
 
-  toggleChain: (chain: string) => void;
+  togglePlatform: (platform: string) => void;
   toggleCategory: (cat: string) => void;
   setMinFollowers: (n: number | null) => void;
   setTimeframe: (t: Timeframe) => void;
@@ -42,7 +42,7 @@ interface AppStore {
 
 export const useAppStore = create<AppStore>((set) => ({
   filters: {
-    chains: new Set<string>(),
+    platforms: new Set<string>(),
     categories: new Set<string>(),
     timeframe: 'all',
     minFollowers: null,
@@ -57,12 +57,12 @@ export const useAppStore = create<AppStore>((set) => ({
   closedPanels: new Set<string>(),
   layoutVersion: 0,
 
-  toggleChain: (chain) =>
+  togglePlatform: (platform) =>
     set((s) => {
-      const next = new Set(s.filters.chains);
-      if (next.has(chain)) next.delete(chain);
-      else next.add(chain);
-      return { filters: { ...s.filters, chains: next } };
+      const next = new Set(s.filters.platforms);
+      if (next.has(platform)) next.delete(platform);
+      else next.add(platform);
+      return { filters: { ...s.filters, platforms: next } };
     }),
 
   toggleCategory: (cat) =>

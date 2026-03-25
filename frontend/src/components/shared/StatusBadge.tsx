@@ -1,6 +1,6 @@
 import type { LaunchStatus } from '../../types';
 
-const STATUS_CONFIG: Record<LaunchStatus, { label: string; icon: string; color: string; glowClass: string }> = {
+export const STATUS_CONFIG: Record<LaunchStatus, { label: string; icon: string; color: string; glowClass: string }> = {
   STUB:      { label: 'SIGNAL',    icon: '\u25C9', color: '#FF4444', glowClass: 'glow-red' },
   PARTIAL:   { label: 'TRACKING',  icon: '\u25CE', color: '#F5A623', glowClass: 'glow-amber' },
   CONFIRMED: { label: 'CONFIRMED', icon: '\u25CF', color: '#F5C542', glowClass: 'glow-amber' },

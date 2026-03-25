@@ -18,6 +18,8 @@ model LaunchRecord {
   rescheduledAt        DateTime?
   launchType           String?
   chain                String?
+  platform             String?
+  platforms            String[]       @default([])
   categories           String[]       @default([])
   primaryCategory      String?
   website              String?
@@ -208,6 +210,17 @@ model WalletNonce {
   expiresAt      DateTime
 }
 
+model MagicToken {
+  id        String    @id @default(cuid())
+  email     String
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+}
+
 model UserSettings {
   id            String  @id @default(cuid())
   userId        String  @unique
@@ -260,4 +273,29 @@ model AdminFlag {
   detail    String
   reviewed  Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+// ─── Platform Suggestions ─────────────────────────────────
+// Tracks unknown platform names suggested by the LLM extractor.
+// Admin can approve (adds to canonical list) or dismiss.
+
+model PlatformSuggestion {
+  id              String   @id @default(cuid())
+  name            String
+  occurrences     Int      @default(1)
+  lastSeenAt      DateTime @default(now())
+  launchRecordIds String[] @default([])
+  status          PlatformSuggestionStatus @default(PENDING)
+  reviewedAt      DateTime?
+  reviewedBy      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([name])
+}
+
+enum PlatformSuggestionStatus {
+  PENDING
+  APPROVED
+  DISMISSED
 }

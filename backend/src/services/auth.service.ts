@@ -2,11 +2,11 @@ import { randomBytes } from 'crypto';
 import { verifyMessage, getAddress } from 'viem';
 import nacl from 'tweetnacl';
 import bs58 from 'bs58';
-import argon2 from 'argon2';
 import { prisma } from '../db/client.js';
 import { config } from '../config.js';
 import { createChildLogger } from '../logger.js';
 import { geolocateIp, detectAnomaly } from './location.service.js';
+import { sendMagicLinkEmail } from './email.service.js';
 import type { FastifyRequest } from 'fastify';
 import type { User, Session, FlagSeverity } from '@prisma/client';
 
@@ -118,37 +118,64 @@ export async function verifyWalletSignature(
   return user;
 }
 
-// ─── Email Auth ─────────────────────────────────────────────
+// ─── Magic Link Auth ────────────────────────────────────────
 
-export async function registerWithEmail(
-  email: string,
-  password: string
-): Promise<User> {
-  const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-  if (existing) throw new Error('Email already registered');
+export async function sendMagicLink(email: string): Promise<void> {
+  const normalizedEmail = email.toLowerCase();
 
-  const passwordHash = await argon2.hash(password);
-
-  const user = await prisma.user.create({
-    data: {
-      email: email.toLowerCase(),
-      passwordHash,
+  // Rate limit: 1 token per email per 60 seconds
+  const recent = await prisma.magicToken.findFirst({
+    where: {
+      email: normalizedEmail,
+      createdAt: { gte: new Date(Date.now() - 60 * 1000) },
     },
   });
+  if (recent) {
+    log.warn('Magic link rate limited', { email: normalizedEmail });
+    return; // Silently return to prevent email enumeration
+  }
 
-  log.info('New user created via email', { userId: user.id });
-  return user;
+  const token = randomBytes(32).toString('hex');
+  const expiresAt = new Date(
+    Date.now() + config.MAGIC_LINK_EXPIRY_MINUTES * 60 * 1000
+  );
+
+  await prisma.magicToken.create({
+    data: { email: normalizedEmail, token, expiresAt },
+  });
+
+  const magicUrl = `${config.FRONTEND_URL}/auth/magic?token=${token}`;
+  await sendMagicLinkEmail(normalizedEmail, magicUrl);
+
+  log.info('Magic link sent', { email: normalizedEmail });
 }
 
-export async function loginWithEmail(
-  email: string,
-  password: string
-): Promise<User> {
-  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-  if (!user || !user.passwordHash) throw new Error('Invalid credentials');
+export async function verifyMagicToken(token: string): Promise<User> {
+  const record = await prisma.magicToken.findUnique({ where: { token } });
 
-  const valid = await argon2.verify(user.passwordHash, password);
-  if (!valid) throw new Error('Invalid credentials');
+  if (!record) throw new Error('Invalid or expired link');
+  if (record.usedAt) throw new Error('Link already used');
+  if (record.expiresAt < new Date()) {
+    throw new Error('Link expired');
+  }
+
+  // Mark token as used
+  await prisma.magicToken.update({
+    where: { token },
+    data: { usedAt: new Date() },
+  });
+
+  // Find or create user by email
+  let user = await prisma.user.findUnique({
+    where: { email: record.email },
+  });
+
+  if (!user) {
+    user = await prisma.user.create({
+      data: { email: record.email },
+    });
+    log.info('New user created via magic link', { userId: user.id });
+  }
 
   return user;
 }

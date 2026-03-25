@@ -24,6 +24,7 @@ const configSchema = z.object({
   // Email (Resend)
   RESEND_API_KEY: z.string().default(''),
   EMAIL_FROM: z.string().default('security@launchradar.xyz'),
+  MAGIC_LINK_EXPIRY_MINUTES: z.coerce.number().default(15),
 
   // Geolocation
   GEOIP_PROVIDER: z.enum(['ip-api', 'abstractapi']).default('ip-api'),
@@ -50,6 +51,7 @@ const configSchema = z.object({
   ALPHAGATE_COOKIE_NAME: z.string().default(''),
   ALPHAGATE_COOKIE_VALUE: z.string().default(''),
   ALPHAGATE_CHAINS: z.string().default('Base,Solana,Ethereum'),
+  ALPHAGATE_PLATFORMS: z.string().default('Base,Solana,Ethereum'),
   ALPHAGATE_BACKFILL_DAYS: z.coerce.number().default(7),
 });
 

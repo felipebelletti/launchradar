@@ -2,17 +2,24 @@ import { useState, useRef, useCallback } from 'react';
 import type { LaunchRecord, LaunchStatus } from '../../../types';
 import { CalendarDayPopover } from './CalendarDayPopover';
 
-const CHAIN_SYMBOLS: Record<string, { label: string; color: string }> = {
-  solana:   { label: 'S', color: '#9945FF' },
-  ethereum: { label: 'E', color: '#627EEA' },
-  base:     { label: 'B', color: '#0052FF' },
-  bsc:      { label: 'B', color: '#F3BA2F' },
-  pump:     { label: 'P', color: '#00D4FF' },
+const PLATFORM_SYMBOLS: Record<string, { label: string; color: string }> = {
+  solana:    { label: 'S', color: '#9945FF' },
+  ethereum:  { label: 'E', color: '#627EEA' },
+  base:      { label: 'B', color: '#0052FF' },
+  bsc:       { label: 'B', color: '#F3BA2F' },
+  'pump.fun': { label: 'P', color: '#00D4FF' },
+  arbitrum:  { label: 'A', color: '#28A0F0' },
+  optimism:  { label: 'O', color: '#FF0420' },
+  polygon:   { label: 'M', color: '#8247E5' },
+  avalanche: { label: 'V', color: '#E84142' },
+  sui:       { label: 'U', color: '#4DA2FF' },
+  aptos:     { label: 'T', color: '#2DD8A3' },
+  ton:       { label: 'N', color: '#0098EA' },
 };
 
-function ChainDot({ chain, redacted }: { chain: string | null; redacted?: boolean }) {
-  const key = (chain ?? '').toLowerCase();
-  const sym = CHAIN_SYMBOLS[key];
+function PlatformDot({ platform, redacted }: { platform: string | null; redacted?: boolean }) {
+  const key = (platform ?? '').toLowerCase();
+  const sym = PLATFORM_SYMBOLS[key];
 
   if (redacted) {
     return (
@@ -121,7 +128,7 @@ export function CalendarCell({
               <span className="text-white/10 text-xs w-full text-center mt-1">·</span>
             )}
             {launches.slice(0, launches.length > 5 ? 4 : 5).map((l) => (
-              <ChainDot key={l.id} chain={l.chain} redacted={l.redacted} />
+              <PlatformDot key={l.id} platform={l.platform} redacted={l.redacted} />
             ))}
             {launches.length > 5 && (
               <span className="text-white/40 text-[8px] font-mono leading-none self-center">
@@ -135,7 +142,7 @@ export function CalendarCell({
           <div className="flex flex-col gap-1 mt-2 overflow-hidden flex-1">
             {launches.slice(0, 4).map((l) => (
               <div key={l.id} className="flex items-center gap-1.5 min-w-0">
-                <ChainDot chain={l.chain} redacted={l.redacted} />
+                <PlatformDot platform={l.platform} redacted={l.redacted} />
                 <span className={`text-[10px] font-mono truncate ${
                   l.redacted ? 'text-white/20 blur-[2px] select-none' : 'text-white/70'
                 }`}>
