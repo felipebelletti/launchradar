@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { Check, X, ArrowLeft } from 'lucide-react';
 import { usePlan } from '../hooks/usePlan';
+import { useAuthStore } from '../store/auth.store';
+import type { AuthUser } from '../store/auth.store';
+import { getDeviceFingerprint } from '../lib/fingerprint';
 import type { Plan } from '../types';
 
 const PLAN_RANK: Record<Plan, number> = { free: 0, scout: 1, alpha: 2, pro: 3 };
@@ -93,7 +96,7 @@ const PLANS: PlanTier[] = [
     name: 'PRO',
     price: '$99',
     period: '/mo',
-    cta: 'Upgrade to Pro',
+    cta: 'Subscribe',
     features: [
       { label: 'Launch feed (real-time)', included: true },
       { label: 'Calendar: Next Hour + Today', included: true },
@@ -115,12 +118,37 @@ const PLANS: PlanTier[] = [
 
 export function PricingPage({ onBack }: { onBack?: () => void }) {
   const { plan: currentPlan } = usePlan();
+  const { user, setUser } = useAuthStore();
   const [loading, setLoading] = useState<Plan | null>(null);
+
+  const trialEligible = !!user && !user.trialUsed && !user.trialExpiresAt;
 
   async function handleUpgrade(plan: Plan) {
     if (plan === 'free') return;
     setLoading(plan);
     try {
+      // ALPHA plan: activate free trial if user hasn't used it yet
+      if (plan === 'alpha' && user && !user.trialUsed && !user.trialExpiresAt) {
+        const fingerprint = await getDeviceFingerprint();
+        const res = await fetch('/auth/trial/activate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ fingerprint }),
+        });
+        if (res.ok) {
+          // Refetch user to pick up the active trial
+          const meRes = await fetch('/auth/me', { credentials: 'include' });
+          if (meRes.ok) {
+            const { user: updated } = (await meRes.json()) as { user: AuthUser };
+            setUser(updated);
+          }
+          setLoading(null);
+          return;
+        }
+        // Fall through to checkout if trial activation fails
+      }
+
       const res = await fetch('/billing/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -205,29 +233,35 @@ export function PricingPage({ onBack }: { onBack?: () => void }) {
                   ))}
                 </div>
 
-                {/* CTA */}
-                <button
-                  onClick={() => handleUpgrade(tier.id)}
-                  disabled={isCurrent || loading === tier.id || (!isHigher && tier.id !== 'free')}
-                  className={`w-full py-2.5 rounded-lg text-xs font-bold tracking-wider transition cursor-pointer ${
-                    isCurrent
-                      ? 'bg-white/10 text-radar-muted cursor-default'
-                      : tier.popular
-                        ? 'bg-amber-400 text-black hover:bg-amber-300'
-                        : 'bg-white/10 text-radar-text hover:bg-white/20'
-                  } disabled:opacity-50`}
-                >
-                  {isCurrent
-                    ? 'CURRENT PLAN'
-                    : loading === tier.id
-                      ? 'Redirecting...'
-                      : tier.cta}
-                </button>
-                {tier.trialNote && !isCurrent && (
-                  <p className="text-center text-[10px] text-radar-muted mt-2">
-                    {tier.trialNote}
-                  </p>
-                )}
+                {/* CTA + note — fixed height so cards stay aligned */}
+                <div className="h-[52px] flex flex-col items-center">
+                  <button
+                    onClick={() => handleUpgrade(tier.id)}
+                    disabled={isCurrent || loading === tier.id || (!isHigher && tier.id !== 'free')}
+                    className={`w-full py-2.5 rounded-lg text-xs font-bold tracking-wider transition cursor-pointer ${
+                      isCurrent
+                        ? 'bg-white/10 text-radar-muted cursor-default'
+                        : tier.popular
+                          ? 'bg-amber-400 text-black hover:bg-amber-300'
+                          : 'bg-white/10 text-radar-text hover:bg-white/20'
+                    } disabled:opacity-50`}
+                  >
+                    {isCurrent
+                      ? 'CURRENT PLAN'
+                      : loading === tier.id
+                        ? 'Redirecting...'
+                        : tier.id === 'alpha' && !trialEligible
+                          ? 'Subscribe'
+                          : tier.cta}
+                  </button>
+                  {tier.id === 'alpha' && !isCurrent && (
+                    <p className="text-center text-[10px] text-radar-muted mt-1.5">
+                      {trialEligible
+                        ? tier.trialNote
+                        : 'Free trial already used'}
+                    </p>
+                  )}
+                </div>
               </div>
             );
           })}

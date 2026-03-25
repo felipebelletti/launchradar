@@ -8,7 +8,23 @@ const log = createChildLogger('alphagate');
 
 const BASE_URL = 'https://api.alphagate.io';
 const CURSOR_KEY = 'alphagate:cursor';
-const THREE_DAYS_S = 3 * 24 * 60 * 60;
+const STATUS_KEY = 'alphagate:status';
+
+/** Returns Unix timestamp (seconds) for the 1st of the current month at 00:00 UTC. */
+function startOfCurrentMonthUnix(): number {
+  const now = new Date();
+  return Math.floor(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).getTime() / 1000);
+}
+
+// ─── Status tracking (Redis) ────────────────────────────
+
+async function setStatus(fields: Record<string, string>): Promise<void> {
+  await redis.hset(STATUS_KEY, fields);
+}
+
+export async function getAlphaGateStatus(): Promise<Record<string, string>> {
+  return redis.hgetall(STATUS_KEY);
+}
 
 // ─── AlphaGate project shape ─────────────────────────────
 
@@ -52,7 +68,7 @@ interface DiscoverResponse {
 export async function loadCursor(): Promise<number> {
   const stored = await redis.get(CURSOR_KEY);
   if (stored) return parseInt(stored, 10);
-  return Math.floor(Date.now() / 1000) - THREE_DAYS_S;
+  return startOfCurrentMonthUnix();
 }
 
 export async function updateCursor(timestamp: number): Promise<void> {
@@ -110,7 +126,8 @@ export async function backfill(since: number): Promise<AlphaGateProject[]> {
   while (true) {
     const url =
       `${BASE_URL}/api/v1/child/discover?` +
-      `ontop=false&page=${page}&limit=60&unfiltered=true&order=-1`;
+      `ontop=false&page=${page}&limit=60&unfiltered=true&order=-1` +
+      `&exclude_tags[]=Launched`;
 
     let res: DiscoverResponse;
     try {
@@ -178,10 +195,17 @@ export function startAlphaGateStream(
   socket.on('connect', () => {
     log.info('AlphaGate socket connected');
     socket.emit('i_join_feed_room');
+    setStatus({ socketStatus: 'connected', connectedAt: new Date().toISOString() });
+  });
+
+  socket.on('disconnect', (reason) => {
+    log.warn('AlphaGate socket disconnected', { reason });
+    setStatus({ socketStatus: 'disconnected', disconnectedAt: new Date().toISOString() });
   });
 
   socket.on('connect_error', (err) => {
     log.error('AlphaGate socket connection error', { message: err.message });
+    setStatus({ socketStatus: 'error', lastError: err.message, errorAt: new Date().toISOString() });
   });
 
   // Step 2: buffer socket events during backfill
@@ -221,6 +245,10 @@ export function startAlphaGateStream(
       buffer.length = 0;
 
       log.info('Processing merged backfill + buffer', { count: all.length });
+      await setStatus({
+        lastBackfillAt: new Date().toISOString(),
+        lastBackfillCount: String(all.length),
+      });
 
       for (const project of all) {
         try {
@@ -238,6 +266,7 @@ export function startAlphaGateStream(
       // Switch to live mode
       isBackfilling = false;
       log.info('AlphaGate switched to live stream mode');
+      await setStatus({ mode: 'live', liveAt: new Date().toISOString() });
     } catch (err) {
       log.error('AlphaGate backfill failed', { err });
       isBackfilling = false; // still accept live events

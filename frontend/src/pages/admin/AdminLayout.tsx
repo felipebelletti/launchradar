@@ -4,18 +4,21 @@ import {
   LayoutDashboard,
   Users,
   Flag,
+  Radio,
   ArrowLeft,
 } from 'lucide-react';
 import { AdminOverview } from './AdminOverview';
 import { AdminUsers } from './AdminUsers';
 import { AdminUserDetail } from './AdminUserDetail';
 import { AdminFlags } from './AdminFlags';
+import { AdminAlphaGate } from './AdminAlphaGate';
 
 type AdminView =
   | { page: 'overview' }
   | { page: 'users' }
   | { page: 'user-detail'; userId: string }
-  | { page: 'flags' };
+  | { page: 'flags' }
+  | { page: 'alphagate' };
 
 export function AdminLayout({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
@@ -33,6 +36,7 @@ export function AdminLayout({ onClose }: { onClose: () => void }) {
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'users', label: 'Users', icon: Users },
     { id: 'flags', label: 'Flags', icon: Flag },
+    { id: 'alphagate', label: 'AlphaGate', icon: Radio },
   ] as const;
 
   return (
@@ -84,6 +88,7 @@ export function AdminLayout({ onClose }: { onClose: () => void }) {
           />
         )}
         {view.page === 'flags' && <AdminFlags />}
+        {view.page === 'alphagate' && <AdminAlphaGate />}
       </div>
     </div>
   );

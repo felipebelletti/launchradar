@@ -1,8 +1,10 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../db/client.js';
+import { redis } from '../redis.js';
 import { createChildLogger } from '../logger.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { revokeAllUserSessions } from '../services/auth.service.js';
+import { getAlphaGateStatus, loadCursor } from '../services/alphagate.service.js';
 
 const log = createChildLogger('admin-routes');
 
@@ -457,4 +459,71 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       return reply.send({ ok: true });
     }
   );
+
+  // ─── AlphaGate Stats ──────────────────────────────────
+
+  app.get('/admin/alphagate', async (_request: FastifyRequest, reply: FastifyReply) => {
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    const [status, cursor, processedCount, lastProcessedRaw, totalSources, sourcesToday, sources24h, recentRecords] =
+      await Promise.all([
+        getAlphaGateStatus(),
+        loadCursor(),
+        redis.get('alphagate:processed_count'),
+        redis.get('alphagate:last_processed'),
+        prisma.launchSource.count({ where: { type: 'ALPHAGATE' } }),
+        prisma.launchSource.count({ where: { type: 'ALPHAGATE', createdAt: { gte: todayStart } } }),
+        prisma.launchSource.count({ where: { type: 'ALPHAGATE', createdAt: { gte: last24h } } }),
+        prisma.launchRecord.findMany({
+          where: { sources: { some: { type: 'ALPHAGATE' } }, createdAt: { gte: last24h } },
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+          select: {
+            id: true,
+            projectName: true,
+            twitterHandle: true,
+            chain: true,
+            status: true,
+            confidenceScore: true,
+            createdAt: true,
+          },
+        }),
+      ]);
+
+    let lastProcessed = null;
+    if (lastProcessedRaw) {
+      try { lastProcessed = JSON.parse(lastProcessedRaw); } catch { /* ignore */ }
+    }
+
+    return reply.send({
+      socket: {
+        status: status.socketStatus ?? 'unknown',
+        connectedAt: status.connectedAt ?? null,
+        disconnectedAt: status.disconnectedAt ?? null,
+        lastError: status.lastError ?? null,
+        errorAt: status.errorAt ?? null,
+      },
+      stream: {
+        mode: status.mode ?? 'unknown',
+        liveAt: status.liveAt ?? null,
+        lastBackfillAt: status.lastBackfillAt ?? null,
+        lastBackfillCount: status.lastBackfillCount ? parseInt(status.lastBackfillCount, 10) : 0,
+      },
+      cursor: {
+        value: cursor,
+        date: new Date(cursor * 1000).toISOString(),
+      },
+      stats: {
+        totalProcessed: processedCount ? parseInt(processedCount, 10) : 0,
+        totalSources,
+        sourcesToday,
+        sources24h,
+        lastProcessed,
+      },
+      recentRecords,
+    });
+  });
 }

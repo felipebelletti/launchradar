@@ -378,6 +378,16 @@ const AUDIT_TWEETS: AuditTweet[] = [
     reason: 'Random user (382 followers, bio "@CNPYNetwork EmoFi") rephrasing WandrLust $AFK TGE details — not the project account',
   },
 
+  // CaptchaApp — existing product asking for feedback, not a launch
+  {
+    project: 'CaptchaApp (existing product feedback)',
+    tier: 'TIER_A',
+    authorHandle: 'CaptchaApp',
+    text: '5/ built on Solana under the hood. try it out and give us your feedback! sign up as an agent at http://captcha.social or get the app at https://apps.apple.com/us/app/captcha-anti-slop-app/id6759180163',
+    expectedVerdict: 'REJECT',
+    reason: 'Existing product asking for feedback — "try it out" implies already live, no launch event',
+  },
+
   // WandrLust own account announcing $AFK TGE — legitimate
   {
     project: 'AFK / WandrLust (own account TGE)',

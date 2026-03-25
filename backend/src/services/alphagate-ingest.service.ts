@@ -7,6 +7,9 @@ import { publishEvent } from '../events/publisher.js';
 import { createChildLogger } from '../logger.js';
 import type { AlphaGateProject } from './alphagate.service.js';
 
+const PROCESSED_COUNT_KEY = 'alphagate:processed_count';
+const LAST_PROCESSED_KEY = 'alphagate:last_processed';
+
 const log = createChildLogger('alphagate-ingest');
 
 // 7-day TTL for "already imported" guard
@@ -69,9 +72,15 @@ export async function processAlphaGateProject(
     return;
   }
 
-  // Guard: skip projects tagged as "Launched" (we track upcoming, not past)
-  if (project.tag.some((t) => t.toLowerCase() === 'launched') && project.dexscreener) {
-    log.debug('Skipping already-launched project', { id: project._id, name: project.name });
+  // Guard: skip already-launched projects (we track upcoming, not past)
+  const hasLaunchedTag = project.tag.some((t) => t.toLowerCase() === 'launched');
+  const hasDexscreener = project.dexscreener != null && Object.keys(project.dexscreener).length > 0;
+  if (hasLaunchedTag || hasDexscreener) {
+    log.debug('Skipping already-launched project', {
+      id: project._id,
+      name: project.name,
+      reason: hasLaunchedTag ? 'tagged_launched' : 'has_dexscreener',
+    });
     await redis.set(importKey, '1', 'EX', IMPORT_TTL);
     return;
   }
@@ -213,8 +222,15 @@ export async function processAlphaGateProject(
     });
   }
 
-  // Mark as imported
+  // Mark as imported + track stats
   await redis.set(importKey, '1', 'EX', IMPORT_TTL);
+  await redis.incr(PROCESSED_COUNT_KEY);
+  await redis.set(LAST_PROCESSED_KEY, JSON.stringify({
+    name: projectName,
+    handle: twitterHandle,
+    chain,
+    at: new Date().toISOString(),
+  }));
 
   // Queue enrichment if we have a twitter handle
   if (twitterHandle) {
