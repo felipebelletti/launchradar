@@ -5,7 +5,7 @@ import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { useAppStore, LAYOUT_STORAGE_KEY } from '../../store/app.store';
 import { CalendarPanel } from '../panels/CalendarPanel';
-import { SignalIntelligencePanel } from '../panels/SignalIntelligencePanel';
+import { SignalFeedPanel } from '../panels/SignalIntelligencePanel';
 import { PlatformFilterPanel } from '../panels/PlatformFilterPanel';
 import { CategoryFilterPanel } from '../panels/CategoryFilterPanel';
 import { WatchlistPanel } from '../panels/WatchlistPanel';
@@ -38,7 +38,7 @@ function loadLayout(): Layout[] {
 
 const PANELS: Record<string, (onClose: () => void) => React.ReactNode> = {
   'calendar':  (onClose) => <CalendarPanel onClose={onClose} />,
-  'signal-intel': (onClose) => <SignalIntelligencePanel onClose={onClose} />,
+  'signal-intel': (onClose) => <SignalFeedPanel onClose={onClose} />,
   'platform':  (onClose) => <PlatformFilterPanel onClose={onClose} />,
   'category':  (onClose) => <CategoryFilterPanel onClose={onClose} />,
   'trash':     (onClose) => <TrashBinPanel onClose={onClose} />,

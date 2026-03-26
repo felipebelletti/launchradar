@@ -1,13 +1,14 @@
-import { formatDistanceToNow, differenceInMinutes, differenceInHours, differenceInDays, isPast } from 'date-fns';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { formatDistanceToNow } from 'date-fns';
+import { AnimatePresence } from 'framer-motion';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useIntelligence } from '../../hooks/useIntelligence';
 import type { IntelligenceStats } from '../../hooks/useIntelligence';
 import { PanelShell } from './PanelShell';
-import { PlatformTag } from '../shared/PlatformTag';
+import { SignalCard } from './SignalCard';
+import { BatchRow } from './BatchRow';
 import { UpgradeButton } from '../shared/UpgradeButton';
-import { STATUS_CONFIG } from '../shared/StatusBadge';
 import { useAppStore } from '../../store/app.store';
-import type { LaunchRecord, LaunchStatus } from '../../types';
+import type { LaunchRecord } from '../../types';
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -25,46 +26,6 @@ const LAUNCH_TYPE_LABELS: Record<string, string> = {
   testnet: 'TESTNET',
   tge: 'TGE',
 };
-
-function formatLaunchTime(launchDate: string | null, createdAt: string): {
-  text: string;
-  isUrgent: boolean;
-  isLaunched: boolean;
-  isFallback: boolean;
-} {
-  if (!launchDate) {
-    return {
-      text: formatDistanceToNow(new Date(createdAt), { addSuffix: true }),
-      isUrgent: false,
-      isLaunched: false,
-      isFallback: true,
-    };
-  }
-
-  const date = new Date(launchDate);
-  const now = new Date();
-
-  if (isPast(date)) {
-    return {
-      text: 'launched ' + formatDistanceToNow(date, { addSuffix: true }),
-      isUrgent: false,
-      isLaunched: true,
-      isFallback: false,
-    };
-  }
-
-  const mins = differenceInMinutes(date, now);
-  const hrs = differenceInHours(date, now);
-  const days = differenceInDays(date, now);
-
-  let text: string;
-  if (mins < 60) text = `in ${mins}m`;
-  else if (hrs < 24) text = `in ${hrs}h`;
-  else if (days === 1) text = 'tomorrow';
-  else text = `in ${days}d`;
-
-  return { text, isUrgent: mins <= 60, isLaunched: false, isFallback: false };
-}
 
 // ── Sub-components ─────────────────────────────────────────
 
@@ -129,21 +90,6 @@ function StatsBlock({ stats }: { stats: IntelligenceStats }) {
         </p>
       )}
     </div>
-  );
-}
-
-// ── Status icon (replaces dot) ─────────────────────────────
-
-function StatusIconMicro({ status }: { status: LaunchStatus }) {
-  const cfg = STATUS_CONFIG[status];
-  return (
-    <span
-      className="text-[10px] leading-none flex-shrink-0 w-3 text-center"
-      style={{ color: cfg.color }}
-      title={cfg.label}
-    >
-      {cfg.icon}
-    </span>
   );
 }
 
@@ -225,88 +171,10 @@ function SignalTooltip({ signal, anchor }: { signal: LaunchRecord; anchor: DOMRe
   );
 }
 
-// ── Signal row: single line, compact ───────────────────────
+// ── Constants ─────────────────────────────────────────────
 
-function SignalRow({
-  signal,
-  onHover,
-  onLeave,
-}: {
-  signal: LaunchRecord;
-  onHover: (rect: DOMRect) => void;
-  onLeave: () => void;
-}) {
-  const openDrawer = useAppStore((s) => s.openDrawer);
-  const rowRef = useRef<HTMLDivElement>(null);
-
-  const time = useMemo(
-    () => formatLaunchTime(signal.launchDate, signal.createdAt),
-    [signal.launchDate, signal.createdAt],
-  );
-
-  const isImminent = !!(
-    signal.launchDate &&
-    !isPast(new Date(signal.launchDate)) &&
-    differenceInMinutes(new Date(signal.launchDate), new Date()) <= 60
-  );
-  const isLive = signal.status === 'LIVE';
-
-  const handleMouseEnter = useCallback(() => {
-    if (rowRef.current) onHover(rowRef.current.getBoundingClientRect());
-  }, [onHover]);
-
-  const showTicker =
-    signal.ticker && signal.ticker.toLowerCase() !== signal.projectName?.toLowerCase();
-
-  // Left border color for urgency / live
-  const borderClass = isImminent
-    ? 'border-l-2 border-l-amber-400/70'
-    : isLive
-      ? 'border-l-2 border-l-cyan-400/40'
-      : '';
-
-  return (
-    <div
-      ref={rowRef}
-      className={`flex items-center gap-2 px-4 py-2 min-w-0 overflow-hidden
-                   hover:bg-white/[0.02] transition-colors cursor-pointer
-                   border-b border-white/[0.03] ${borderClass}
-                   ${isImminent ? 'animate-pulse' : ''}`}
-      onClick={signal.redacted ? undefined : () => openDrawer(signal.id)}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={onLeave}
-    >
-      {/* Status icon */}
-      <StatusIconMicro status={signal.status} />
-
-      {/* Name + ticker */}
-      <span className="text-sm truncate min-w-0 flex-1 font-mono">
-        <span className="text-white/80">{signal.projectName ?? '???'}</span>
-        {showTicker && (
-          <span className="text-white/25 ml-1 text-[11px]">${signal.ticker}</span>
-        )}
-      </span>
-
-      {/* Platform badge */}
-      {signal.platform && <PlatformTag platform={signal.platform} />}
-
-      {/* Time — launch countdown or detection time */}
-      <span
-        className={`font-mono text-[10px] whitespace-nowrap text-right ${
-          time.isUrgent
-            ? 'text-amber-400/90 font-bold'
-            : time.isLaunched
-              ? 'text-cyan-400/50'
-              : time.isFallback
-                ? 'text-white/20'
-                : 'text-white/35'
-        }`}
-      >
-        {time.text}
-      </span>
-    </div>
-  );
-}
+/** Max individual cards shown in the scrollable area; the rest collapse into BatchRow */
+const VISIBLE_LIMIT = 8;
 
 // ── Other sub-components ──────────────────────────────────
 
@@ -363,8 +231,15 @@ function IntelligenceSkeleton() {
 
 // ── Main panel ────────────────────────────────────────────
 
-export function SignalIntelligencePanel({ onClose }: { onClose?: () => void }) {
+export function SignalFeedPanel({ onClose }: { onClose?: () => void }) {
   const { data, isLoading } = useIntelligence();
+
+  // 10s re-render tick — drives the freshness glow fade on cards
+  const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
+  useEffect(() => {
+    const id = setInterval(forceUpdate, 10_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Hover tooltip
   const [hoveredSignal, setHoveredSignal] = useState<LaunchRecord | null>(null);
@@ -390,57 +265,83 @@ export function SignalIntelligencePanel({ onClose }: { onClose?: () => void }) {
     const vis: LaunchRecord[] = [];
     const red: LaunchRecord[] = [];
     for (const s of data.signals) {
+      // Filter out LIVE records older than 24h — stale intelligence
+      if (s.status === 'LIVE') {
+        const launchedAt = s.launchedAt ? new Date(s.launchedAt) : new Date(s.createdAt);
+        if (Date.now() - launchedAt.getTime() >= 24 * 60 * 60 * 1000) continue;
+      }
       (s.redacted ? red : vis).push(s);
     }
     return { visible: vis, redacted: red };
   }, [data]);
 
+  const topSignals = visible.slice(0, VISIBLE_LIMIT);
+  const remainingSignals = visible.slice(VISIBLE_LIMIT);
+
   const stopDrag = useCallback((e: React.MouseEvent) => { e.stopPropagation(); }, []);
 
   return (
-    <PanelShell title="SIGNAL INTELLIGENCE" onClose={onClose} actions={<RadioIcon />}>
+    <PanelShell
+      title="SIGNAL FEED"
+      onClose={onClose}
+      actions={<RadioIcon />}
+      contentClassName="flex-1 overflow-y-auto min-h-0 radar-scrollbar"
+    >
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-      <div className="flex flex-col h-full overflow-hidden -m-3" onMouseDown={stopDrag}>
+      <div onMouseDown={stopDrag}>
         {isLoading || !data ? (
           <IntelligenceSkeleton />
         ) : (
           <>
-            <StatsBlock stats={data.stats} />
+            {/* Stats — sticky at top so cards scroll behind it */}
+            <div className="sticky top-0 z-10 bg-radar-bg">
+              <StatsBlock stats={data.stats} />
+              <div className="h-px bg-white/[0.05] mx-3" />
+            </div>
 
-            <div className="h-px bg-white/[0.05] flex-shrink-0 mx-3" />
-
-            <div className="flex-1 overflow-y-auto min-h-0 flex flex-col radar-scrollbar">
-              {visible.length === 0 && redacted.length === 0 ? (
-                <EmptySignalState />
-              ) : (
-                <>
-                  {visible.map((signal) => (
-                    <SignalRow
-                      key={signal.id}
-                      signal={signal}
-                      onHover={(rect) => handleHover(signal, rect)}
+            {topSignals.length === 0 && redacted.length === 0 ? (
+              <EmptySignalState />
+            ) : (
+              <div className="py-1">
+                <AnimatePresence initial={false}>
+                  {topSignals.map((s) => (
+                    <SignalCard
+                      key={s.id}
+                      signal={s}
+                      isNew={Date.now() - new Date(s.createdAt).getTime() < 60_000}
+                      onHover={(rect) => handleHover(s, rect)}
                       onLeave={handleLeave}
                     />
                   ))}
+                </AnimatePresence>
 
-                  {redacted.length > 0 && (
-                    <div className="relative flex-1 min-h-0">
-                      <UpgradeOverlay redactedCount={redacted.length} />
-                      <div className="blur-[3px] opacity-40 select-none pointer-events-none h-full overflow-hidden">
-                        {redacted.map((signal) => (
-                          <SignalRow
-                            key={signal.id}
-                            signal={signal}
-                            onHover={() => {}}
-                            onLeave={() => {}}
-                          />
-                        ))}
-                      </div>
+                {redacted.length > 0 && (
+                  <div className="relative">
+                    <UpgradeOverlay redactedCount={redacted.length} />
+                    <div className="blur-[3px] opacity-40 select-none pointer-events-none overflow-hidden">
+                      {redacted.map((signal) => (
+                        <SignalCard key={signal.id} signal={signal} />
+                      ))}
                     </div>
-                  )}
-                </>
-              )}
-            </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Batch row — sticky at bottom */}
+            {remainingSignals.length > 0 && (
+              <div
+                className="sticky bottom-0 z-10 bg-radar-bg"
+                style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}
+              >
+                <BatchRow
+                  count={remainingSignals.length}
+                  signals={remainingSignals}
+                  onHover={handleHover}
+                  onLeave={handleLeave}
+                />
+              </div>
+            )}
           </>
         )}
       </div>

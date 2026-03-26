@@ -1,4 +1,4 @@
-import { XCircle, RotateCcw } from 'lucide-react';
+import { Trash2, RotateCcw } from 'lucide-react';
 import { useDiscardStore } from '../../store/discard.store';
 import { useFloatingTooltip } from '../../hooks/useFloatingTooltip';
 
@@ -34,7 +34,7 @@ export function DiscardButton({
             : 'text-radar-muted/40 hover:text-rose-400'
         } ${className}`}
       >
-        {discarded ? <RotateCcw size={size} /> : <XCircle size={size} />}
+        {discarded ? <RotateCcw size={size} /> : <Trash2 size={size} />}
       </button>
       {tooltip}
     </>

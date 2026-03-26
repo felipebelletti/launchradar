@@ -12,6 +12,7 @@ export function PanelShell({
   children,
   actions,
   className = '',
+  contentClassName,
 }: {
   title: string;
   panelId?: string;
@@ -21,6 +22,8 @@ export function PanelShell({
   children: ReactNode;
   actions?: ReactNode;
   className?: string;
+  /** Override the content wrapper classes (default: "flex-1 overflow-auto p-3") */
+  contentClassName?: string;
 }) {
   return (
     <div
@@ -50,7 +53,7 @@ export function PanelShell({
           )}
         </div>
       </div>
-      <div className="flex-1 overflow-auto p-3">
+      <div className={contentClassName ?? 'flex-1 overflow-auto p-3'}>
         {children}
       </div>
     </div>

@@ -1,9 +1,10 @@
 import { motion } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { PlatformTag } from '../shared/PlatformTag';
-import { StatusBadge } from '../shared/StatusBadge';
 import { CategoryBadge } from '../shared/CategoryBadge';
 import { useAppStore } from '../../store/app.store';
+import { WatchButton } from '../shared/WatchButton';
+import { DiscardButton } from '../shared/DiscardButton';
 import type { LaunchRecord } from '../../types';
 
 function formatLaunchTime(
@@ -39,12 +40,27 @@ function RescheduledTag() {
   );
 }
 
+const HEADER_STYLE: Record<string, {
+  bg: string; borderB: string; border: string;
+  dotColor: string; textColor: string; label: string; pulse: boolean;
+}> = {
+  LIVE:      { bg: 'bg-cyan-400/[0.08]',   borderB: 'border-b border-cyan-400/10',   border: 'border-cyan-400/20',   dotColor: 'bg-cyan-400',   textColor: 'text-cyan-400',   label: 'LIVE',      pulse: true },
+  VERIFIED:  { bg: 'bg-cyan-400/[0.08]',   borderB: 'border-b border-cyan-400/10',   border: 'border-cyan-400/20',   dotColor: 'bg-cyan-400',   textColor: 'text-cyan-400',   label: 'VERIFIED',  pulse: false },
+  CONFIRMED: { bg: 'bg-amber-400/[0.07]',  borderB: 'border-b border-amber-400/10',  border: 'border-amber-400/15',  dotColor: 'bg-amber-400',  textColor: 'text-amber-400',  label: 'CONFIRMED', pulse: false },
+  PARTIAL:   { bg: 'bg-orange-400/[0.06]', borderB: 'border-b border-orange-400/10', border: 'border-orange-400/15', dotColor: 'bg-orange-400', textColor: 'text-orange-400', label: 'PARTIAL',   pulse: false },
+  STUB:      { bg: 'bg-red-400/[0.06]',    borderB: 'border-b border-red-400/10',    border: 'border-red-400/15',    dotColor: 'bg-red-400',    textColor: 'text-red-400',    label: 'SIGNAL',    pulse: true },
+  STALE:     { bg: 'bg-zinc-400/[0.05]',   borderB: 'border-b border-zinc-400/10',   border: 'border-zinc-400/15',   dotColor: 'bg-zinc-400',   textColor: 'text-zinc-400',   label: 'STALE',     pulse: false },
+  CANCELLED: { bg: 'bg-rose-400/[0.06]',   borderB: 'border-b border-rose-400/10',   border: 'border-rose-500/20',   dotColor: 'bg-rose-400',   textColor: 'text-rose-400',   label: 'CANCELLED', pulse: false },
+};
+
 export function LaunchCard({ launch }: { launch: LaunchRecord }) {
   const openDrawer = useAppStore((s) => s.openDrawer);
   const isNewHighlight = useAppStore((s) => s.highlightedLaunchIds.includes(launch.id));
 
   const hasLiveNowTweet = launch.tweets?.some(t => t.timeBadge === 'LIVE_NOW') ?? false;
   const timeLabel = formatLaunchTime(launch.launchDate, launch.launchDateRaw, launch.status, launch.launchedAt, hasLiveNowTweet);
+
+  const style = HEADER_STYLE[launch.status] ?? HEADER_STYLE.STUB;
 
   return (
     <motion.div
@@ -55,66 +71,58 @@ export function LaunchCard({ launch }: { launch: LaunchRecord }) {
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}
       onClick={() => openDrawer(launch.id)}
-      className={`rounded-lg border p-3 cursor-pointer select-none overflow-hidden transition-colors duration-150 ${
-        isNewHighlight ? 'launch-new-highlight ' : ''
-      }${
-        launch.status === 'CANCELLED'
-          ? 'border-rose-500/25 hover:border-rose-400/30 bg-rose-950/[0.12]'
-          : launch.status === 'LIVE'
-            ? 'border-cyan-400/30 hover:bg-cyan-400/[0.06] bg-cyan-400/[0.03]'
-            : 'border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]'
+      className={`group relative rounded-lg border ${style.border} cursor-pointer select-none overflow-hidden transition-colors duration-150 bg-white/[0.02] hover:bg-white/[0.04] ${
+        isNewHighlight ? 'launch-new-highlight' : ''
       }`}
     >
-      {/* Row 1: Name + Status Badge */}
-      <div className="flex items-start justify-between gap-2 min-w-0">
-        <h3
-          className={`font-display text-base leading-tight line-clamp-2 min-w-0 flex-1 transition-colors ${
-            launch.status === 'CANCELLED'
-              ? 'text-radar-text/80'
-              : launch.status === 'LIVE'
-                ? 'text-cyan-100'
-                : 'text-white'
-          }`}
-        >
+      {/* Header */}
+      <div className={`flex items-center justify-between gap-2 px-3 py-2 ${style.bg} ${style.borderB}`}>
+        <h3 className="font-display text-sm font-bold tracking-wider text-white/90 truncate flex-1 min-w-0">
           {launch.projectName}
         </h3>
-        <div className="flex-shrink-0 mt-0.5">
-          <StatusBadge status={launch.status} />
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
+            <DiscardButton launchId={launch.id} size={12} />
+            <WatchButton launchId={launch.id} size={12} />
+          </div>
+          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${style.dotColor} ${style.pulse ? 'animate-pulse' : ''}`} />
+          <span className={`text-[9px] font-mono font-bold tracking-widest flex-shrink-0 ${style.textColor}`}>
+            {style.label}
+          </span>
         </div>
       </div>
 
-      {/* Row 2: Platform + Category tags (same row) */}
-      {(launch.platform || launch.primaryCategory) && (
-        <div className="flex items-center gap-1.5 mt-2 min-w-0">
-          {launch.platform && <PlatformTag platform={launch.platform} />}
-          {launch.primaryCategory && <CategoryBadge category={launch.primaryCategory} />}
-        </div>
-      )}
+      {/* Body */}
+      <div className="px-[11px] py-2">
+        {(launch.platform || launch.primaryCategory) && (
+          <div className="flex items-center gap-1.5 min-w-0">
+            {launch.platform && <PlatformTag platform={launch.platform} />}
+            {launch.primaryCategory && <CategoryBadge category={launch.primaryCategory} />}
+          </div>
+        )}
 
-      {/* Row 4: Time label (own line) */}
-      <p
-        className={`font-mono text-xs mt-2 truncate ${
-          launch.status === 'CANCELLED'
-            ? 'text-rose-300/80 line-through decoration-rose-500/50'
-            : launch.status === 'LIVE'
-              ? 'text-cyan-400'
-              : 'text-amber-400'
-        }`}
-      >
-        {timeLabel}
-      </p>
+        <p
+          className={`font-mono text-xs mt-2 truncate ${
+            launch.status === 'CANCELLED'
+              ? 'text-rose-300/80 line-through decoration-rose-500/50'
+              : launch.status === 'LIVE'
+                ? 'text-cyan-400'
+                : 'text-amber-400'
+          }`}
+        >
+          {timeLabel}
+        </p>
 
-      {/* Row 5: Rescheduled badge */}
-      {launch.rescheduledAt && (
-        <div className="mt-1">
-          <RescheduledTag />
-        </div>
-      )}
+        {launch.rescheduledAt && (
+          <div className="mt-1">
+            <RescheduledTag />
+          </div>
+        )}
 
-      {/* Row 6: Discovery timestamp */}
-      <p className="text-[11px] text-white/30 font-mono mt-1.5 truncate">
-        discovered {formatDistanceToNow(new Date(launch.createdAt), { addSuffix: true })}
-      </p>
+        <p className="text-[11px] text-white/30 font-mono mt-1.5 truncate">
+          discovered {formatDistanceToNow(new Date(launch.createdAt), { addSuffix: true })}
+        </p>
+      </div>
     </motion.div>
   );
 }

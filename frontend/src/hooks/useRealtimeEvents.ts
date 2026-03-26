@@ -11,13 +11,13 @@ import type { BackendEvent, LaunchRecord } from '../types';
 /** Map of event type → which panels should be notified (excluding calendar sub-panels) */
 const EVENT_PANEL_MAP: Record<BackendEvent['type'], { panelId: string; panelTitle: string }[]> = {
   'launch:new': [
-    { panelId: 'signal-intel:new', panelTitle: 'SIGNAL INTELLIGENCE' },
+    { panelId: 'signal-intel:new', panelTitle: 'SIGNAL FEED' },
   ],
   'launch:updated': [
-    { panelId: 'signal-intel:updated', panelTitle: 'SIGNAL INTELLIGENCE' },
+    { panelId: 'signal-intel:updated', panelTitle: 'SIGNAL FEED' },
   ],
   'launch:cancelled': [
-    { panelId: 'signal-intel:cancelled', panelTitle: 'SIGNAL INTELLIGENCE' },
+    { panelId: 'signal-intel:cancelled', panelTitle: 'SIGNAL FEED' },
     { panelId: 'trash', panelTitle: 'TRASH BIN' },
   ],
 };

@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, AlignJustify, Plus, RotateCcw,
   CalendarClock, Radio, Link, Tags, Eye, Trash2,
-  User,
+  User, Gem,
 } from 'lucide-react';
 import { useState } from 'react';
 import type { ComponentType } from 'react';
@@ -14,7 +14,7 @@ import { NavPlanBadge } from './NavPlanBadge';
 
 const ALL_PANELS: { id: string; label: string; icon: ComponentType<LucideProps>; color: string }[] = [
   { id: 'calendar',  label: 'Calendar',   icon: CalendarClock,     color: 'text-radar-amber' },
-  { id: 'signal-intel', label: 'Signal Intel', icon: Radio,          color: 'text-radar-red' },
+  { id: 'signal-intel', label: 'Signal Feed', icon: Radio,          color: 'text-radar-red' },
   { id: 'platform',  label: 'Platforms',  icon: Link,              color: 'text-radar-cyan' },
   { id: 'category',  label: 'Categories', icon: Tags,              color: 'text-radar-orange' },
   { id: 'watchlist', label: 'Watchlist',  icon: Eye,               color: 'text-sky-400' },
@@ -86,7 +86,7 @@ export function TopNav({ onOpenAdmin, onNavigate }: TopNavProps = {}) {
               <button
                 onClick={() => setMode(m)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-mono tracking-widest transition-colors ${
-                  mode === m ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white/50'
+                  mode === m ? 'bg-white/10 text-white' : 'text-white/35 hover:text-white/50'
                 }`}
               >
                 {m === 'terminal' ? <LayoutDashboard size={11} /> : <AlignJustify size={11} />}
@@ -108,7 +108,18 @@ export function TopNav({ onOpenAdmin, onNavigate }: TopNavProps = {}) {
               ACCOUNT
             </button>
 
-            <div className="w-px h-3 bg-white/10" />
+            <span className="text-white/15">·</span>
+
+            <a
+              href="/pricing"
+              className="flex items-center gap-1.5 text-white/45 hover:text-white/70 transition
+                         text-[11px] font-mono tracking-widest"
+            >
+              <Gem size={11} />
+              PLANS
+            </a>
+
+            <div className="w-px h-3 bg-white/10 mx-1" />
             <NavPlanBadge onClick={() => setShowUserMenu((v) => !v)} />
           </div>
 

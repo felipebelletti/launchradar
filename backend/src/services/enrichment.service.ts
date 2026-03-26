@@ -416,6 +416,43 @@ export async function enrichLaunch(
     return;
   }
 
+  // Step 0: If the record has no tweets (e.g. AlphaGate-sourced), fetch recent
+  // tweets from the author so the drawer has SOURCE TWEETS to display.
+  if (record.tweets.length === 0 && record.twitterHandle) {
+    try {
+      const searchResult = await twitterApi.advancedSearch(
+        `from:${record.twitterHandle} -is:retweet`,
+        'Latest',
+        undefined,
+        new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // last 7 days
+      );
+      const fetched = searchResult.tweets?.slice(0, 5) ?? [];
+      for (const tw of fetched) {
+        const exists = await prisma.tweetSignal.findUnique({ where: { tweetId: tw.id } });
+        if (exists) continue;
+        const created = await prisma.tweetSignal.create({
+          data: {
+            tweetId: tw.id,
+            text: tw.text,
+            authorHandle: tw.author.userName,
+            authorId: tw.author.id,
+            likes: tw.likeCount ?? 0,
+            retweets: tw.retweetCount ?? 0,
+            createdAt: new Date(tw.createdAt),
+            launchRecordId,
+            imageUrls: tw.photos?.map((p) => p.url) ?? [],
+          },
+        });
+        record.tweets.push(created);
+      }
+      if (fetched.length > 0) {
+        log.info('Backfilled tweets for record', { launchRecordId, count: fetched.length });
+      }
+    } catch (err) {
+      log.warn('Failed to backfill tweets', { launchRecordId, error: String(err) });
+    }
+  }
+
   const resolvedTweet = triggerTweetId
     ? record.tweets.find((t) => t.tweetId === triggerTweetId) ??
       (await prisma.tweetSignal.findUnique({ where: { tweetId: triggerTweetId } }))
